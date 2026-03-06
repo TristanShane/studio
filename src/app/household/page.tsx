@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Navbar } from "@/components/layout/Navbar";
@@ -8,10 +9,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, UserPlus, Copy, LogOut, Settings, Swords, Zap, Leaf, Heart, Trophy, Gift, Check, X } from "lucide-react";
+import { 
+  Shield, 
+  UserPlus, 
+  Copy, 
+  LogOut, 
+  Settings, 
+  Swords, 
+  Zap, 
+  Leaf, 
+  Heart, 
+  Trophy, 
+  Gift, 
+  Check, 
+  X, 
+  Trash2, 
+  UserCog 
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, arrayUnion, onSnapshot, deleteDoc } from "firebase/firestore";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  setDoc, 
+  updateDoc, 
+  arrayUnion, 
+  onSnapshot, 
+  deleteDoc,
+  writeBatch
+} from "firebase/firestore";
 import { 
   Dialog, 
   DialogContent, 
@@ -21,7 +50,19 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const PRE_POPULATED_PRIZES = [
   "Pizza Night",
@@ -36,24 +77,24 @@ const PRE_POPULATED_PRIZES = [
 export default function HouseholdPage() {
   const { user } = useUser();
   const db = useFirestore();
+  const router = useRouter();
   const [members, setMembers] = useState<any[]>([]);
   const [household, setHousehold] = useState<any>(null);
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [prizeTitle, setPrizeTitle] = useState("Pizza Night");
   const [prizeFrequency, setPrizeFrequency] = useState("Weekly");
   const [isAddWarriorOpen, setIsAddWarriorOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
-    // Fetch household data
     const q = query(collection(db, "households"), where("members", "array-contains", user.uid));
     const unsubscribeHousehold = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         const hDoc = snapshot.docs[0];
         setHousehold({ id: hDoc.id, ...hDoc.data() });
         
-        // Fetch join requests if owner
         if (hDoc.data().ownerId === user.uid) {
           const reqQuery = collection(db, "households", hDoc.id, "joinRequests");
           onSnapshot(reqQuery, (reqSnapshot) => {
@@ -63,9 +104,12 @@ export default function HouseholdPage() {
       }
     });
 
-    const savedMembers = localStorage.getItem('household_members');
-    if (savedMembers) setMembers(JSON.parse(savedMembers));
+    const updateMembersFromStorage = () => {
+      const savedMembers = localStorage.getItem('household_members');
+      if (savedMembers) setMembers(JSON.parse(savedMembers));
+    };
 
+    updateMembersFromStorage();
     const savedPrize = localStorage.getItem('household_prize');
     if (savedPrize) {
       const parsed = JSON.parse(savedPrize);
@@ -73,8 +117,15 @@ export default function HouseholdPage() {
       setPrizeFrequency(parsed.frequency);
     }
 
-    return () => unsubscribeHousehold();
+    window.addEventListener('storage', updateMembersFromStorage);
+    return () => {
+      unsubscribeHousehold();
+      window.removeEventListener('storage', updateMembersFromStorage);
+    };
   }, [user, db]);
+
+  const isOwner = household?.ownerId === user?.uid;
+  const isAdmin = members.find(m => m.id === user?.uid)?.role === 'Admin' || isOwner;
 
   const copyInviteCode = () => {
     if (!household) return;
@@ -85,15 +136,49 @@ export default function HouseholdPage() {
   const handleApprove = async (request: any) => {
     if (!household) return;
     try {
-      // Add to household members
       await updateDoc(doc(db, "households", household.id), {
         members: arrayUnion(request.userId)
       });
-      // Delete request
       await deleteDoc(doc(db, "households", household.id, "joinRequests", request.userId));
       toast({ title: "Warrior Approved!", description: `${request.userName} is now part of the base.` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Approval Failed", description: e.message });
+    }
+  };
+
+  const handlePromoteToAdmin = (memberId: string) => {
+    if (!isOwner) return;
+    const updatedMembers = members.map(m => 
+      m.id === memberId ? { ...m, role: 'Admin' } : m
+    );
+    setMembers(updatedMembers);
+    localStorage.setItem('household_members', JSON.stringify(updatedMembers));
+    window.dispatchEvent(new Event('storage'));
+    toast({ title: "Rank Promoted!", description: "New Admin authorized for prize control." });
+  };
+
+  const handleDeleteHousehold = async () => {
+    if (!isOwner || !household) return;
+    setIsDeleting(true);
+    try {
+      // 1. Delete Firestore Household Document
+      await deleteDoc(doc(db, "households", household.id));
+      
+      // 2. Clear all local storage battle data
+      localStorage.removeItem('activeMemberId');
+      localStorage.removeItem('household_members');
+      localStorage.removeItem('household_chores');
+      localStorage.removeItem('household_prize');
+      localStorage.removeItem('household_notifications');
+      
+      // 3. Dispatch storage event for Navbar sync
+      window.dispatchEvent(new Event('storage'));
+      
+      toast({ title: "Base Decommissioned", description: "All data wiped. Returning to login." });
+      router.push("/login");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Deletion Failed", description: e.message });
+      setIsDeleting(false);
     }
   };
 
@@ -124,6 +209,7 @@ export default function HouseholdPage() {
   };
 
   const handleUpdatePrize = () => {
+    if (!isAdmin) return;
     const prizeData = { title: prizeTitle, frequency: prizeFrequency };
     localStorage.setItem('household_prize', JSON.stringify(prizeData));
     window.dispatchEvent(new Event('storage'));
@@ -225,7 +311,21 @@ export default function HouseholdPage() {
                         </p>
                       </div>
                     </div>
-                    <Badge className={member.role === 'Owner' ? 'bg-primary' : 'bg-muted text-muted-foreground'}>{member.role}</Badge>
+                    <div className="flex items-center gap-2">
+                      {isOwner && member.id !== user?.uid && member.role !== 'Admin' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 text-[10px] font-bold"
+                          onClick={() => handlePromoteToAdmin(member.id)}
+                        >
+                          <UserCog className="w-3 h-3 mr-1" /> Make Admin
+                        </Button>
+                      )}
+                      <Badge className={member.role === 'Owner' ? 'bg-primary' : member.role === 'Admin' ? 'bg-accent' : 'bg-muted text-muted-foreground'}>
+                        {member.role}
+                      </Badge>
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -239,14 +339,14 @@ export default function HouseholdPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="font-bold">Prize Frequency</Label>
-                    <Select value={prizeFrequency} onValueChange={setPrizeFrequency}>
+                    <Select value={prizeFrequency} onValueChange={setPrizeFrequency} disabled={!isAdmin}>
                       <SelectTrigger className="bg-muted/30"><SelectValue placeholder="Select Frequency" /></SelectTrigger>
                       <SelectContent><SelectItem value="Daily">Daily Reward</SelectItem><SelectItem value="Weekly">Weekly Grand Prize</SelectItem><SelectItem value="Monthly">Monthly Mega Reward</SelectItem></SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label className="font-bold">Select Reward Type</Label>
-                    <Select value={prizeTitle} onValueChange={setPrizeTitle}>
+                    <Select value={prizeTitle} onValueChange={setPrizeTitle} disabled={!isAdmin}>
                       <SelectTrigger className="bg-muted/30"><SelectValue placeholder="Select Reward" /></SelectTrigger>
                       <SelectContent>{PRE_POPULATED_PRIZES.map(p => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent>
                     </Select>
@@ -255,12 +355,59 @@ export default function HouseholdPage() {
                 <div className="space-y-2">
                   <Label className="font-bold">Custom Reward</Label>
                   <div className="flex gap-2">
-                    <Input placeholder="Custom prize..." value={prizeTitle} onChange={(e) => setPrizeTitle(e.target.value)} className="bg-muted/30" />
-                    <Button onClick={handleUpdatePrize} className="bg-accent hover:bg-accent/90 font-bold">Update Prize</Button>
+                    <Input 
+                      placeholder="Custom prize..." 
+                      value={prizeTitle} 
+                      onChange={(e) => setPrizeTitle(e.target.value)} 
+                      className="bg-muted/30" 
+                      disabled={!isAdmin}
+                    />
+                    <Button 
+                      onClick={handleUpdatePrize} 
+                      className="bg-accent hover:bg-accent/90 font-bold"
+                      disabled={!isAdmin}
+                    >
+                      Update Prize
+                    </Button>
                   </div>
                 </div>
+                {!isAdmin && (
+                  <p className="text-[10px] text-muted-foreground italic text-center">
+                    Only Guardians or Admins can forge new prizes.
+                  </p>
+                )}
               </CardContent>
             </Card>
+
+            {isOwner && (
+              <div className="pt-8">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="w-full font-bold">
+                      <Trash2 className="w-4 h-4 mr-2" /> Decommission Household Base
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action is irreversible. It will permanently delete your Battle Base, clear all warrior achievements, wipe current XP, and remove all recorded victories.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep Base</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleDeleteHousehold} 
+                        className="bg-destructive hover:bg-destructive/90"
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? "Wiping Data..." : "Destroy Base"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
           </div>
 
           <div className="space-y-6">

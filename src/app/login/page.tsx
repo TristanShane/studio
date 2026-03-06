@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState } from "react";
-import { useAuth, useFirestore } from "@/firebase";
+import { useState, useEffect } from "react";
+import { useAuth, useFirestore, useUser } from "@/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,17 @@ export default function LoginPage() {
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
+  const { user, isUserLoading } = useUser();
   const [battleCode, setBattleCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Persistence logic: if already logged in, redirect home
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      router.push("/");
+    }
+  }, [user, isUserLoading, router]);
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -27,19 +35,19 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      const authenticatedUser = result.user;
 
       // Ensure user profile exists
-      await setDoc(doc(db, "users", user.uid), {
-        id: user.uid,
-        name: user.displayName || "Unknown Warrior",
-        email: user.email,
-        avatarUrl: user.photoURL,
+      await setDoc(doc(db, "users", authenticatedUser.uid), {
+        id: authenticatedUser.uid,
+        name: authenticatedUser.displayName || "Unknown Warrior",
+        email: authenticatedUser.email,
+        avatarUrl: authenticatedUser.photoURL,
         updatedAt: serverTimestamp()
       }, { merge: true });
 
       if (battleCode.trim()) {
-        await handleJoinRequest(user.uid, user.displayName || user.email || "Warrior");
+        await handleJoinRequest(authenticatedUser.uid, authenticatedUser.displayName || authenticatedUser.email || "Warrior");
       } else {
         router.push("/");
       }
@@ -56,14 +64,13 @@ export default function LoginPage() {
   };
 
   const handleJoinRequest = async (userId: string, userName: string) => {
-    // Find household by invite code
     const hRef = collection(db, "households");
     const q = query(hRef, where("inviteCode", "==", battleCode.trim().toUpperCase()));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
       toast({ variant: "destructive", title: "Code Invalid", description: "No household found with that battle code." });
-      router.push("/"); // Still log them in, let them create their own
+      router.push("/"); 
       return;
     }
 
@@ -80,6 +87,14 @@ export default function LoginPage() {
     toast({ title: "Request Sent!", description: "The Guardian must approve your entry into the household." });
     router.push("/");
   };
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Swords className="w-12 h-12 text-primary animate-bounce" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
@@ -131,7 +146,6 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
       
-      {/* Visual Flairs */}
       <div className="fixed bottom-10 left-10 opacity-20 hidden lg:block">
         <Shield className="w-32 h-32 text-primary" />
       </div>
