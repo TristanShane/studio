@@ -85,6 +85,7 @@ export default function HouseholdPage() {
   const [prizeFrequency, setPrizeFrequency] = useState("Weekly");
   const [isAddWarriorOpen, setIsAddWarriorOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -104,28 +105,33 @@ export default function HouseholdPage() {
       }
     });
 
-    const updateMembersFromStorage = () => {
+    const syncState = () => {
       const savedMembers = localStorage.getItem('household_members');
       if (savedMembers) setMembers(JSON.parse(savedMembers));
+
+      const aid = localStorage.getItem('activeMemberId');
+      setActiveMemberId(aid);
+
+      const savedPrize = localStorage.getItem('household_prize');
+      if (savedPrize) {
+        const parsed = JSON.parse(savedPrize);
+        setPrizeTitle(parsed.title);
+        setPrizeFrequency(parsed.frequency);
+      }
     };
 
-    updateMembersFromStorage();
-    const savedPrize = localStorage.getItem('household_prize');
-    if (savedPrize) {
-      const parsed = JSON.parse(savedPrize);
-      setPrizeTitle(parsed.title);
-      setPrizeFrequency(parsed.frequency);
-    }
-
-    window.addEventListener('storage', updateMembersFromStorage);
+    syncState();
+    window.addEventListener('storage', syncState);
     return () => {
       unsubscribeHousehold();
-      window.removeEventListener('storage', updateMembersFromStorage);
+      window.removeEventListener('storage', syncState);
     };
   }, [user, db]);
 
   const isOwner = household?.ownerId === user?.uid;
-  const isAdmin = members.find(m => m.id === user?.uid)?.role === 'Admin' || isOwner;
+  const activeMember = members.find(m => m.id === activeMemberId);
+  // Important: Use the role of the *active* member to control editing
+  const isAdmin = activeMember?.role === 'Admin' || activeMember?.role === 'Owner' || isOwner;
 
   const copyInviteCode = () => {
     if (!household) return;
@@ -134,7 +140,7 @@ export default function HouseholdPage() {
   };
 
   const handleApprove = async (request: any) => {
-    if (!household) return;
+    if (!household || !isOwner) return;
     try {
       await updateDoc(doc(db, "households", household.id), {
         members: arrayUnion(request.userId)
@@ -154,27 +160,17 @@ export default function HouseholdPage() {
     setMembers(updatedMembers);
     localStorage.setItem('household_members', JSON.stringify(updatedMembers));
     window.dispatchEvent(new Event('storage'));
-    toast({ title: "Rank Promoted!", description: "New Admin authorized for prize control." });
+    toast({ title: "Rank Promoted!", description: "New Admin authorized for base management." });
   };
 
   const handleDeleteHousehold = async () => {
     if (!isOwner || !household) return;
     setIsDeleting(true);
     try {
-      // 1. Delete Firestore Household Document
       await deleteDoc(doc(db, "households", household.id));
-      
-      // 2. Clear all local storage battle data
-      localStorage.removeItem('activeMemberId');
-      localStorage.removeItem('household_members');
-      localStorage.removeItem('household_chores');
-      localStorage.removeItem('household_prize');
-      localStorage.removeItem('household_notifications');
-      
-      // 3. Dispatch storage event for Navbar sync
+      localStorage.clear();
       window.dispatchEvent(new Event('storage'));
-      
-      toast({ title: "Base Decommissioned", description: "All data wiped. Returning to login." });
+      toast({ title: "Base Decommissioned", description: "All data wiped." });
       router.push("/login");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Deletion Failed", description: e.message });
@@ -184,6 +180,7 @@ export default function HouseholdPage() {
 
   const handleRecruit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isAdmin) return;
     const formData = new FormData(e.currentTarget);
     const name = formData.get('warrior-name') as string;
     const theme = formData.get('warrior-path') as string || 'member-1';
@@ -205,15 +202,18 @@ export default function HouseholdPage() {
     localStorage.setItem('household_members', JSON.stringify(updatedMembers));
     window.dispatchEvent(new Event('storage'));
     setIsAddWarriorOpen(false);
-    toast({ title: "New Warrior Recruited!", description: `${name} has joined the battle station!` });
+    toast({ title: "New Warrior Recruited!", description: `${name} has joined the roster.` });
   };
 
   const handleUpdatePrize = () => {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+      toast({ variant: "destructive", title: "Access Denied", description: "Only Admins/Guardians can modify prizes." });
+      return;
+    }
     const prizeData = { title: prizeTitle, frequency: prizeFrequency };
     localStorage.setItem('household_prize', JSON.stringify(prizeData));
     window.dispatchEvent(new Event('storage'));
-    toast({ title: "Prize Updated!", description: `Goal updated for the household.` });
+    toast({ title: "Prize Updated!", description: "The battle goal has been refreshed." });
   };
 
   return (
@@ -222,13 +222,13 @@ export default function HouseholdPage() {
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-headline font-bold">Base HQ: {household?.name || "The Avengers"}</h1>
-            <p className="text-muted-foreground">Manage your team and set battle rewards.</p>
+            <h1 className="text-3xl font-headline font-bold">Base HQ: {household?.name || "Loading..."}</h1>
+            <p className="text-muted-foreground">Manage your team and household rewards.</p>
           </div>
           <div className="flex items-center gap-2">
             <Dialog open={isAddWarriorOpen} onOpenChange={setIsAddWarriorOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 font-bold shadow-lg shadow-primary/20">
+                <Button disabled={!isAdmin} className="bg-primary hover:bg-primary/90 font-bold shadow-lg shadow-primary/20">
                   <Swords className="w-4 h-4 mr-2" /> Recruit Warrior
                 </Button>
               </DialogTrigger>
@@ -236,7 +236,7 @@ export default function HouseholdPage() {
                 <form onSubmit={handleRecruit}>
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-headline">New Warrior Profile</DialogTitle>
-                    <DialogDescription>Add a profile to this tablet for quick switching.</DialogDescription>
+                    <DialogDescription>Add a profile to this tablet for your family.</DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-6 py-6">
                     <div className="grid gap-2">
@@ -263,13 +263,13 @@ export default function HouseholdPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {joinRequests.length > 0 && (
+            {joinRequests.length > 0 && isOwner && (
               <Card className="border-2 border-primary/20 bg-primary/5 shadow-md">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <UserPlus className="w-5 h-5 text-primary" /> Incoming Recruits
+                    <UserPlus className="w-5 h-5 text-primary" /> Pending Recruits
                   </CardTitle>
-                  <CardDescription>New warriors are requesting to join your household base.</CardDescription>
+                  <CardDescription>Authorize new warriors to enter the battle base.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {joinRequests.map(req => (
@@ -278,7 +278,7 @@ export default function HouseholdPage() {
                         <Avatar><AvatarFallback>{req.userName[0]}</AvatarFallback></Avatar>
                         <div>
                           <p className="font-bold">{req.userName}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase">Waiting for access</p>
+                          <p className="text-[10px] text-muted-foreground uppercase font-bold">Requesting Access</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -294,7 +294,7 @@ export default function HouseholdPage() {
             <Card className="border-none shadow-sm overflow-hidden bg-white">
               <CardHeader className="bg-primary/5 border-b">
                 <CardTitle className="text-xl">Battle Roster</CardTitle>
-                <CardDescription>Members sharing this Household base.</CardDescription>
+                <CardDescription>All warriors currently sharing this base.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 {members.map((member) => (
@@ -333,7 +333,10 @@ export default function HouseholdPage() {
 
             <Card className="border-none shadow-sm bg-white overflow-hidden">
               <CardHeader className="bg-accent/5 border-b">
-                <div className="flex items-center gap-2"><Trophy className="w-5 h-5 text-accent" /><CardTitle className="text-xl">Prize Command Center</CardTitle></div>
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-accent" />
+                  <CardTitle className="text-xl">Prize Command Center</CardTitle>
+                </div>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -372,8 +375,8 @@ export default function HouseholdPage() {
                   </div>
                 </div>
                 {!isAdmin && (
-                  <p className="text-[10px] text-muted-foreground italic text-center">
-                    Only Guardians or Admins can forge new prizes.
+                  <p className="text-[10px] text-muted-foreground italic text-center p-2 bg-muted/20 rounded-lg">
+                    Current active warrior ({activeMember?.name}) is not an Admin. Only Guardians or Admins can forge new prizes.
                   </p>
                 )}
               </CardContent>
@@ -389,9 +392,9 @@ export default function HouseholdPage() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogTitle>Total Data Wipe Requested</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action is irreversible. It will permanently delete your Battle Base, clear all warrior achievements, wipe current XP, and remove all recorded victories.
+                        This is an absolute decommission. All warrior rosters, achievements, XP, and history will be permanently deleted from the base.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -401,7 +404,7 @@ export default function HouseholdPage() {
                         className="bg-destructive hover:bg-destructive/90"
                         disabled={isDeleting}
                       >
-                        {isDeleting ? "Wiping Data..." : "Destroy Base"}
+                        {isDeleting ? "Wiping Base..." : "Destroy Base"}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -413,17 +416,17 @@ export default function HouseholdPage() {
           <div className="space-y-6">
             <Card className="bg-white border-none shadow-sm overflow-hidden">
               <CardHeader className="bg-muted/50 border-b">
-                <CardTitle className="text-lg">Invite Warriors</CardTitle>
-                <CardDescription>Share your battle code with other devices.</CardDescription>
+                <CardTitle className="text-lg">Recruit Warriors</CardTitle>
+                <CardDescription>Share your unique battle code to add more devices.</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase">Household Secret Code</Label>
+                  <Label className="text-xs font-bold uppercase tracking-widest">Base Secret Code</Label>
                   <div className="flex gap-2">
                     <Input value={household?.inviteCode || "GENERATING..."} readOnly className="bg-muted/20 font-mono tracking-widest text-center" />
                     <Button variant="outline" size="icon" onClick={copyInviteCode}><Copy className="w-4 h-4" /></Button>
                   </div>
-                  <p className="text-[10px] text-center text-muted-foreground mt-2">New warriors must enter this code at login.</p>
+                  <p className="text-[10px] text-center text-muted-foreground mt-2">New warriors must enter this code at the login screen.</p>
                 </div>
               </CardContent>
             </Card>
