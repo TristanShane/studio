@@ -1,0 +1,504 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents an individual user of the Chore Battle application, holding their personal details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The display name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, used for authentication (password not stored here).",
+          "format": "email"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL to the user's profile avatar image.",
+          "format": "uri"
+        },
+        "currentHouseholdId": {
+          "type": "string",
+          "description": "Reference to the Household the user is currently interacting with or considers primary. (Relationship: Household 1:N UserProfile - optional)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email"
+      ]
+    },
+    "Household": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Household",
+      "type": "object",
+      "description": "Represents a group of users (e.g., a family or roommates) who share and manage chores together.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Household entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the household (e.g., 'The Smith Family')."
+        },
+        "inviteCode": {
+          "type": "string",
+          "description": "A unique, short code used by other users to join this household."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who initially created and owns the household. (Relationship: UserProfile 1:N Household)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the household was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "inviteCode",
+        "ownerId",
+        "createdAt"
+      ]
+    },
+    "HouseholdMembership": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "HouseholdMembership",
+      "type": "object",
+      "description": "Represents a specific user's membership within a household, including their role and gamification statistics for that household.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the HouseholdMembership entity."
+        },
+        "householdId": {
+          "type": "string",
+          "description": "Reference to the Household this membership belongs to. (Relationship: Household 1:N HouseholdMembership)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile associated with this membership. (Relationship: UserProfile 1:N HouseholdMembership)"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the member within the household (e.g., 'owner', 'admin', 'member')."
+        },
+        "joinDate": {
+          "type": "string",
+          "description": "The date and time the user joined the household.",
+          "format": "date-time"
+        },
+        "totalPoints": {
+          "type": "number",
+          "description": "The total points accumulated by this member within this household."
+        },
+        "currentStreak": {
+          "type": "number",
+          "description": "The current consecutive days streak of chore completion for this member."
+        },
+        "lastChoreCompletionDate": {
+          "type": "string",
+          "description": "The date of the last approved chore completion for this member, used to track streaks.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "householdId",
+        "userId",
+        "role",
+        "joinDate",
+        "totalPoints",
+        "currentStreak"
+      ]
+    },
+    "Chore": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chore",
+      "type": "object",
+      "description": "Defines a single chore that needs to be completed within a household.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Chore entity."
+        },
+        "householdId": {
+          "type": "string",
+          "description": "Reference to the Household this chore belongs to. (Relationship: Household 1:N Chore)"
+        },
+        "title": {
+          "type": "string",
+          "description": "A brief title for the chore (e.g., 'Wash Dishes')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the chore's requirements."
+        },
+        "pointValue": {
+          "type": "number",
+          "description": "The number of points awarded for completing this chore."
+        },
+        "frequency": {
+          "type": "string",
+          "description": "How often the chore should be done (e.g., 'once', 'daily', 'weekly', 'monthly')."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The date and time by which the chore is due for its current cycle.",
+          "format": "date-time"
+        },
+        "assignedToUserId": {
+          "type": "string",
+          "description": "Optional reference to the UserProfile to whom the chore is specifically assigned. (Relationship: UserProfile 1:N Chore)"
+        },
+        "createdByUserId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who created this chore. (Relationship: UserProfile 1:N Chore)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the chore was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "householdId",
+        "title",
+        "description",
+        "pointValue",
+        "frequency",
+        "dueDate",
+        "createdByUserId",
+        "createdAt"
+      ]
+    },
+    "ChoreCompletion": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChoreCompletion",
+      "type": "object",
+      "description": "Records an instance of a user claiming and completing a chore, including its approval status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ChoreCompletion entity."
+        },
+        "choreId": {
+          "type": "string",
+          "description": "Reference to the Chore that was completed. (Relationship: Chore 1:N ChoreCompletion)"
+        },
+        "householdMembershipId": {
+          "type": "string",
+          "description": "Reference to the HouseholdMembership of the user who claimed/completed the chore. (Relationship: HouseholdMembership 1:N ChoreCompletion)"
+        },
+        "completionDate": {
+          "type": "string",
+          "description": "The date and time when the chore was marked as completed by the user.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the chore completion (e.g., 'claimed', 'pending_approval', 'approved', 'rejected')."
+        },
+        "approvedByUserId": {
+          "type": "string",
+          "description": "Optional reference to the UserProfile (admin/owner) who approved or rejected the chore. (Relationship: UserProfile 1:N ChoreCompletion)"
+        },
+        "rejectionReason": {
+          "type": "string",
+          "description": "Optional reason provided if the chore completion was rejected."
+        }
+      },
+      "required": [
+        "id",
+        "choreId",
+        "householdMembershipId",
+        "completionDate",
+        "status"
+      ]
+    },
+    "AchievementBadge": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AchievementBadge",
+      "type": "object",
+      "description": "Defines a digital badge that users can earn for specific accomplishments.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AchievementBadge entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the achievement badge (e.g., 'Chore Master', 'Streak Starter')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of what the badge represents."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL to the image or icon representing the badge.",
+          "format": "uri"
+        },
+        "criteriaDescription": {
+          "type": "string",
+          "description": "A human-readable description of the criteria required to earn this badge."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "imageUrl",
+        "criteriaDescription"
+      ]
+    },
+    "UserAchievement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserAchievement",
+      "type": "object",
+      "description": "Records that a specific user within a household has earned a particular achievement badge.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserAchievement entity."
+        },
+        "householdMembershipId": {
+          "type": "string",
+          "description": "Reference to the HouseholdMembership of the user who earned the badge. (Relationship: HouseholdMembership 1:N UserAchievement)"
+        },
+        "badgeId": {
+          "type": "string",
+          "description": "Reference to the AchievementBadge that was earned. (Relationship: AchievementBadge 1:N UserAchievement)"
+        },
+        "earnedDate": {
+          "type": "string",
+          "description": "The date and time when the badge was earned.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "householdMembershipId",
+        "badgeId",
+        "earnedDate"
+      ]
+    },
+    "ActivityLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ActivityLog",
+      "type": "object",
+      "description": "Records significant events and actions within a household for display on an activity dashboard.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ActivityLog entity."
+        },
+        "householdId": {
+          "type": "string",
+          "description": "Reference to the Household where the activity occurred. (Relationship: Household 1:N ActivityLog)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The date and time when the activity took place.",
+          "format": "date-time"
+        },
+        "activityType": {
+          "type": "string",
+          "description": "The type of activity logged (e.g., 'CHORE_COMPLETED', 'CHORE_APPROVED', 'MEMBER_JOINED', 'BADGE_EARNED')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A concise, human-readable description of the event."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who performed or was affected by the activity. (Relationship: UserProfile 1:N ActivityLog)"
+        },
+        "relatedEntityId": {
+          "type": "string",
+          "description": "Optional reference to an entity related to the activity (e.g., choreId for 'CHORE_COMPLETED', badgeId for 'BADGE_EARNED')."
+        }
+      },
+      "required": [
+        "id",
+        "householdId",
+        "timestamp",
+        "activityType",
+        "description",
+        "userId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores individual user profiles. Access is typically restricted to the owning user. The document ID is the user's UID. Does not require denormalized authorization context as it's self-owned."
+        }
+      },
+      {
+        "path": "/households/{householdId}",
+        "definition": {
+          "entityName": "Household",
+          "schema": {
+            "$ref": "#/backend/entities/Household"
+          },
+          "description": "Represents a group of users (e.g., a family). Includes a denormalized 'members' map (`{[userId]: 'role'}`) for authorization independence, allowing direct checks for household members and their roles. This map serves as the source of truth for authorization within the household and its subcollections.",
+          "params": [
+            {
+              "name": "householdId",
+              "description": "The unique identifier for the Household."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/households/{householdId}/members/{membershipId}",
+        "definition": {
+          "entityName": "HouseholdMembership",
+          "schema": {
+            "$ref": "#/backend/entities/HouseholdMembership"
+          },
+          "description": "Records a user's membership within a specific household, including their role and gamification statistics for that household. The document ID (`membershipId`) is unique for each membership. Includes 'householdId' (from path) and 'userId' (in document) for direct rule checks, and 'role' for authorization.",
+          "params": [
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent Household."
+            },
+            {
+              "name": "membershipId",
+              "description": "The unique identifier for the HouseholdMembership record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/households/{householdId}/chores/{choreId}",
+        "definition": {
+          "entityName": "Chore",
+          "schema": {
+            "$ref": "#/backend/entities/Chore"
+          },
+          "description": "Defines a chore belonging to a specific household. Includes denormalized 'householdId' (from path) and the 'members' map (from the parent Household) for authorization independence, enabling direct role-based access checks for read/write operations without `get()` calls.",
+          "params": [
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent Household."
+            },
+            {
+              "name": "choreId",
+              "description": "The unique identifier for the Chore."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/households/{householdId}/chores/{choreId}/completions/{completionId}",
+        "definition": {
+          "entityName": "ChoreCompletion",
+          "schema": {
+            "$ref": "#/backend/entities/ChoreCompletion"
+          },
+          "description": "Records an instance of a user claiming and completing a chore. Includes denormalized 'completedByUserId' (from the completing member's profile), and the 'members' map (from the Household) for authorization independence, allowing direct rule checks for completion claims, approvals, and rejections without `get()` calls to parent or sibling documents.",
+          "params": [
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the grandparent Household."
+            },
+            {
+              "name": "choreId",
+              "description": "The unique identifier of the parent Chore."
+            },
+            {
+              "name": "completionId",
+              "description": "The unique identifier for the ChoreCompletion record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/achievementBadges/{badgeId}",
+        "definition": {
+          "entityName": "AchievementBadge",
+          "schema": {
+            "$ref": "#/backend/entities/AchievementBadge"
+          },
+          "description": "Defines global achievement badges. These are read-only for all authenticated users. No specific authorization denormalization is required as they are static and publicly readable within the app context.",
+          "params": [
+            {
+              "name": "badgeId",
+              "description": "The unique identifier for the AchievementBadge."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/households/{householdId}/members/{membershipId}/achievements/{userAchievementId}",
+        "definition": {
+          "entityName": "UserAchievement",
+          "schema": {
+            "$ref": "#/backend/entities/UserAchievement"
+          },
+          "description": "Records that a specific user within a household has earned a badge. Includes denormalized 'earnedByUserId' (from the earning member's profile), and the 'members' map (from the Household) for authorization independence, enabling direct read access for other household members and write access for the earning user or admins.",
+          "params": [
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the great-grandparent Household."
+            },
+            {
+              "name": "membershipId",
+              "description": "The unique identifier of the grandparent HouseholdMembership."
+            },
+            {
+              "name": "userAchievementId",
+              "description": "The unique identifier for the UserAchievement record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/households/{householdId}/activityLogs/{activityLogId}",
+        "definition": {
+          "entityName": "ActivityLog",
+          "schema": {
+            "$ref": "#/backend/entities/ActivityLog"
+          },
+          "description": "Records significant events within a household. Includes denormalized 'householdId' (from path) and the 'members' map (from the parent Household) for authorization independence, ensuring all household members can read the activity log without needing `get()` calls.",
+          "params": [
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent Household."
+            },
+            {
+              "name": "activityLogId",
+              "description": "The unique identifier for the ActivityLog entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for 'Chore Battle' is designed with a strong emphasis on Authorization Independence, Structural Segregation, and clear Access Modeling to ensure security, scalability, and debuggability. \n\n**Authorization Independence (Strategy A) & QAPs:**\nTo achieve authorization independence, critical access control information is denormalized directly into the documents where it's needed. Specifically, the `members` map (containing `userId` and `role` for each household member) from the top-level `/households/{householdId}` document is denormalized into all subcollection documents (`chores`, `choreCompletions`, `userAchievements`, `activityLogs`). This eliminates the need for `get()` calls in security rules, making rules simpler, faster, and more robust to atomic operations (like transactions or batched writes). For instance, to check if a user can update a chore, the rule can directly examine `resource.data.members[request.auth.uid]` without fetching the parent Household document. This directly supports QAPs by ensuring that when a query returns documents, the authorization context for those documents is immediately available within them, allowing Firestore rules to evaluate permissions efficiently without requiring additional data fetches.\n\n**Structural Segregation (Strategy B):**\nEach collection and subcollection (`/users`, `/households`, `/households/{householdId}/members`, `/households/{householdId}/chores`, etc.) is designed to hold documents with a homogeneous security posture. For example, all `chores` within a given household are accessible by members of that household (with specific roles dictating write access). This simplifies security rules by moving complexity from conditional logic into the data structure itself. Public entities like `achievementBadges` are kept in a separate top-level collection with global read-only access, distinct from household-specific data.\n\n**Access Modeling (Strategy C):**\n1.  **Private Data:** `/users/{userId}` is used for personal user profiles, accessible primarily by the owning user (`request.auth.uid`).\n2.  **User-Owned Hierarchical Data:** `HouseholdMembership` is structured as `/households/{householdId}/members/{membershipId}`. While the `HouseholdMembership` is related to a user, its primary context is within a specific household. Listing all memberships for a user across all households can be done using a collection group query on the `members` subcollection, filtering by `userId == request.auth.uid` (a QAP-friendly approach).\n3.  **Nested Data:** Further nested entities like `ChoreCompletion` are placed as subcollections of their logical parents, e.g., `/households/{householdId}/chores/{choreId}/completions/{completionId}`. The denormalization of authorization context ensures that rules for these deeply nested documents remain independent.\n4.  **Collaborative Data:** Households and their related entities (`chores`, `activityLogs`) are collaborative. Access is managed via the `members` map denormalized in each document, standardizing the authorization pattern.\n\n**Data Clarity and Predictability (Strategy D):**\n-   The `status` field in `ChoreCompletion` provides explicit state modeling (e.g., 'claimed', 'pending_approval', 'approved').\n-   Consistent, semantic naming (`householdId`, `userId`, `choreId`) is used throughout paths and parameters.\n-   Dynamic keys are avoided, except for the standard `members` map which represents roles for a known set of users."
+  }
+}
