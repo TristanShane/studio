@@ -17,8 +17,9 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
-import { Award, Star, Flame, Camera, Shield, Zap, Leaf, Heart, Sparkles, Wand2 } from "lucide-react";
+import { Award, Star, Flame, Camera, Shield, Zap, Leaf, Heart, Sparkles, Wand2, History } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 const WARRIOR_TITLES = [
   "Dust Dragon Slayer",
@@ -72,18 +73,42 @@ export default function ProfilePage() {
     const members = JSON.parse(savedMembers);
     const updatedMembers = members.map((m: any) => {
       if (m.id === activeMember.id) {
+        const history = m.history || [];
+        
+        // Record Title Change
+        if (m.type !== newTitle) {
+          history.push({
+            type: 'title_change',
+            oldValue: m.type,
+            newValue: newTitle,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Record Path Change
+        if (m.theme !== newPath) {
+          const oldPathName = WARRIOR_PATHS.find(p => p.id === m.theme)?.name || "Unknown Path";
+          const newPathName = WARRIOR_PATHS.find(p => p.id === newPath)?.name || "Unknown Path";
+          history.push({
+            type: 'path_change',
+            oldValue: oldPathName,
+            newValue: newPathName,
+            timestamp: new Date().toISOString()
+          });
+        }
+
         return {
           ...m,
           name: newName,
           type: newTitle,
-          theme: newPath
+          theme: newPath,
+          history: history
         };
       }
       return m;
     });
 
     localStorage.setItem('household_members', JSON.stringify(updatedMembers));
-    // Trigger theme change immediately
     document.documentElement.setAttribute('data-theme', newPath);
     window.dispatchEvent(new Event('storage'));
     setIsEditOpen(false);
@@ -183,7 +208,6 @@ export default function ProfilePage() {
                           variant="outline" 
                           onClick={() => {
                             (document.getElementById('edit-path-input') as HTMLInputElement).value = path.id;
-                            // Visual feedback
                             document.querySelectorAll('.path-btn').forEach(b => b.classList.remove('ring-2', 'ring-primary'));
                             document.getElementById(`path-${path.id}`)?.classList.add('ring-2', 'ring-primary');
                           }}
@@ -275,8 +299,10 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <Button variant="outline" className="w-full border-primary text-primary hover:bg-primary/5 font-bold">
-                View Full Victory Log
+              <Button asChild variant="outline" className="w-full border-primary text-primary hover:bg-primary/5 font-bold">
+                <Link href="/victory-log">
+                  <History className="w-4 h-4 mr-2" /> View Full Victory Log
+                </Link>
               </Button>
             </CardContent>
           </Card>
