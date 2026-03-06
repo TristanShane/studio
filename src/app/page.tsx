@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Plus, ChevronRight, User } from "lucide-react";
+import { Flame, Star, Trophy, Plus, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -79,9 +79,6 @@ export default function Dashboard() {
             <p className="text-muted-foreground">Currently logged in as <span className="text-primary font-bold">{activeMemberName}</span></p>
           </div>
           <div className="flex gap-2">
-             <Button variant="outline" className="hidden md:flex">
-              <User className="w-4 h-4 mr-2" /> Switch Warrior
-            </Button>
             <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
               <Plus className="w-4 h-4 mr-2" /> New Mission
             </Button>
