@@ -5,9 +5,10 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Plus, ChevronRight, Gift } from "lucide-react";
+import { Flame, Star, Trophy, Plus, ChevronRight, Gift, Target, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 
 const MOCK_STATS = [
   { label: "Current Points", value: "1,240", icon: Star, color: "bg-primary" },
@@ -82,7 +83,7 @@ export default function Dashboard() {
           <div className="flex gap-2">
             <Button asChild className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
               <Link href="/chores">
-                <Plus className="w-4 h-4 mr-2" /> New Mission
+                <Target className="w-4 h-4 mr-2" /> Mission Board
               </Link>
             </Button>
           </div>
@@ -109,12 +110,13 @@ export default function Dashboard() {
                 <ChoreCard 
                   key={chore.id} 
                   chore={chore} 
+                  activeMemberName={activeMemberName}
                   onComplete={handleComplete}
                 />
               ))
             ) : (
               <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-border">
-                <p className="text-muted-foreground">No missions claimed yet. Go to the board to find one!</p>
+                <p className="text-muted-foreground">You haven't claimed any missions yet. Defend your home!</p>
                 <Button variant="link" asChild>
                   <Link href="/chores">Open Mission Board</Link>
                 </Button>
@@ -126,32 +128,41 @@ export default function Dashboard() {
         {/* Recent Activity / Mini Leaderboard */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section className="bg-white p-6 rounded-2xl border border-border">
-            <h3 className="text-lg font-headline font-bold mb-4">Household Feed</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-headline font-bold">Household Feed</h3>
+              <Users className="w-4 h-4 text-muted-foreground" />
+            </div>
             <div className="space-y-6">
-              {[1, 2, 3].map((_, i) => (
-                <div key={i} className="flex gap-4">
+              {chores.filter(c => c.status === 'completed').slice(0, 3).map((chore, i) => (
+                <div key={chore.id} className="flex gap-4">
                   <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
                     <Star className="w-5 h-5 text-accent" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">
-                      <span className="font-bold">{i === 0 ? 'Sam' : i === 1 ? 'Jordan' : 'Alex'}</span> completed <span className="text-primary font-bold">Chore {i+1}</span>
+                      <span className="font-bold">{chore.assignedTo}</span> completed <span className="text-primary font-bold">{chore.title}</span>
                     </p>
-                    <p className="text-xs text-muted-foreground">{i + 1} hours ago • +{30 * (i+1)} points</p>
+                    <p className="text-xs text-muted-foreground">Just now • +{chore.points} points earned</p>
                   </div>
                 </div>
               ))}
+              {chores.filter(c => c.status === 'completed').length === 0 && (
+                <p className="text-center py-8 text-sm text-muted-foreground italic">No victories reported today... yet.</p>
+              )}
             </div>
           </section>
 
           <section className="bg-primary/5 p-6 rounded-2xl border border-primary/10 flex flex-col justify-center">
             <div className="text-center space-y-2">
-              <Gift className="w-12 h-12 text-primary mx-auto mb-2" />
-              <h3 className="text-xl font-headline font-bold">{prize.frequency} Prize: {prize.title}</h3>
-              <p className="text-sm text-muted-foreground">The winner of the {prize.frequency.toLowerCase()} battle gets to claim this treasure!</p>
+              <div className="relative inline-block">
+                <Gift className="w-12 h-12 text-primary mx-auto mb-2" />
+                <Badge className="absolute -top-1 -right-4 bg-accent text-white border-none text-[10px]">{prize.frequency}</Badge>
+              </div>
+              <h3 className="text-xl font-headline font-bold">Battle Treasure: {prize.title}</h3>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto">The top warrior of the {prize.frequency.toLowerCase()} battle claims this reward!</p>
               <div className="pt-4 flex justify-center gap-2">
-                <Button variant="outline" className="border-primary text-primary hover:bg-primary/5" asChild>
-                  <Link href="/household">Change Reward</Link>
+                <Button variant="outline" className="border-primary text-primary hover:bg-primary/5 h-8 text-xs" asChild>
+                  <Link href="/household">Change Goal</Link>
                 </Button>
               </div>
             </div>

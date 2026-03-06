@@ -5,10 +5,22 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Filter, Users } from "lucide-react";
+import { Plus, Search, Filter, Users, Calendar, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
 
 const INITIAL_CHORES: Chore[] = [
   { id: "1", title: "Wash Dishes", description: "Empty the dishwasher and fill with dirty dishes.", points: 30, dueDate: "Today", status: 'pending', frequency: 'daily' },
@@ -20,8 +32,10 @@ const INITIAL_CHORES: Chore[] = [
 
 export default function ChoresPage() {
   const [chores, setChores] = useState<Chore[]>([]);
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("pending");
   const [activeMemberName, setActiveMemberName] = useState("Alex (Admin)");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isNewChoreOpen, setIsNewChoreOpen] = useState(false);
 
   useEffect(() => {
     const updateFromStorage = () => {
@@ -40,7 +54,10 @@ export default function ChoresPage() {
       if (savedMembers && savedId) {
         const members = JSON.parse(savedMembers);
         const active = members.find((m: any) => m.id === savedId);
-        if (active) setActiveMemberName(active.name);
+        if (active) {
+          setActiveMemberName(active.name);
+          setIsAdmin(active.role?.toLowerCase() === 'admin' || active.role?.toLowerCase() === 'owner');
+        }
       }
     };
 
@@ -53,10 +70,7 @@ export default function ChoresPage() {
     const updated = chores.map(c => 
       c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMemberName } : c
     );
-    setChores(updated);
-    localStorage.setItem('household_chores', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
-
+    saveChores(updated);
     toast({
       title: "Chore Claimed!",
       description: `${activeMemberName} has joined the battle for this task.`,
@@ -65,18 +79,42 @@ export default function ChoresPage() {
 
   const handleComplete = (id: string) => {
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
-    setChores(updated);
-    localStorage.setItem('household_chores', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
-
+    saveChores(updated);
     toast({
       title: "Mission Accomplished!",
       description: "Wait for approval to get your points.",
     });
   };
 
+  const saveChores = (updated: Chore[]) => {
+    setChores(updated);
+    localStorage.setItem('household_chores', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleAddChore = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const newChore: Chore = {
+      id: `chore-${Date.now()}`,
+      title: formData.get('title') as string,
+      description: formData.get('description') as string,
+      points: Number(formData.get('points')),
+      dueDate: formData.get('dueDate') as string,
+      frequency: formData.get('frequency') as any || 'one-time',
+      status: 'pending'
+    };
+
+    const updated = [...chores, newChore];
+    saveChores(updated);
+    setIsNewChoreOpen(false);
+    toast({
+      title: "New Mission Forged!",
+      description: "It has been added to the Mission Board.",
+    });
+  };
+
   const filteredChores = chores.filter(c => {
-    if (activeTab === "all") return true;
     if (activeTab === "pending") return c.status === 'pending';
     if (activeTab === "my-chores") return c.assignedTo === activeMemberName && c.status === 'claimed';
     if (activeTab === "completed") return c.status === 'completed';
@@ -100,18 +138,69 @@ export default function ChoresPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search missions..." className="pl-10 bg-white" />
             </div>
-            <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4" />
-            </Button>
+            {isAdmin && (
+              <Dialog open={isNewChoreOpen} onOpenChange={setIsNewChoreOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-primary hover:bg-primary/90">
+                    <Plus className="w-4 h-4 mr-2" /> New Mission
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <form onSubmit={handleAddChore}>
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-headline">Forge New Mission</DialogTitle>
+                      <DialogDescription>
+                        Create a new task for your household warriors.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="title">Mission Title</Label>
+                        <Input id="title" name="title" placeholder="e.g. Defeat the Dust Bunnies" required />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="description">Description</Label>
+                        <Textarea id="description" name="description" placeholder="Describe the mission requirements..." required />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="points">XP Reward</Label>
+                          <Input id="points" name="points" type="number" defaultValue="50" required />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="frequency">Frequency</Label>
+                          <Select name="frequency" defaultValue="daily">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="daily">Daily</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="one-time">One-time</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="dueDate">Deadline (e.g. "Today 5pm")</Label>
+                        <Input id="dueDate" name="dueDate" placeholder="Today, Tomorrow, Saturday..." required />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="submit" className="w-full">Release Mission to Board</Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </section>
 
-        <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 md:w-auto mb-8 bg-white border">
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="pending">Open</TabsTrigger>
+        <Tabs defaultValue="pending" className="w-full" onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3 md:w-auto mb-8 bg-white border">
+            <TabsTrigger value="pending">Open Board</TabsTrigger>
             <TabsTrigger value="my-chores">My Missions</TabsTrigger>
-            <TabsTrigger value="completed">Done</TabsTrigger>
+            <TabsTrigger value="completed">Victory Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-0">
@@ -121,17 +210,24 @@ export default function ChoresPage() {
                   <ChoreCard 
                     key={chore.id} 
                     chore={chore} 
+                    activeMemberName={activeMemberName}
                     onClaim={handleClaim}
                     onComplete={handleComplete}
+                    isAdmin={isAdmin}
                   />
                 ))}
               </div>
             ) : (
               <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-border">
-                <p className="text-muted-foreground">No missions found in this category.</p>
-                <Button variant="link" className="text-primary font-bold mt-2">
-                  Add a new mission
-                </Button>
+                <div className="bg-muted w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Target className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-bold mb-1">No missions here!</h3>
+                <p className="text-muted-foreground max-w-xs mx-auto text-sm">
+                  {activeTab === 'pending' ? 'All missions have been claimed. Check back later!' : 
+                   activeTab === 'my-chores' ? 'You have no active missions. Claim one from the board!' :
+                   'The victory log is empty. Go earn some XP!'}
+                </p>
               </div>
             )}
           </TabsContent>

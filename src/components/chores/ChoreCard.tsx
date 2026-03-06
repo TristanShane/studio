@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState } from "react";
-import { Check, Clock, Shield, Star, AlertCircle } from "lucide-react";
+import { Check, Clock, Shield, Star, AlertCircle, User } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export interface Chore {
 
 interface ChoreCardProps {
   chore: Chore;
+  activeMemberName: string;
   onClaim?: (id: string) => void;
   onComplete?: (id: string) => void;
   onApprove?: (id: string) => void;
@@ -27,7 +29,7 @@ interface ChoreCardProps {
   isAdmin?: boolean;
 }
 
-export function ChoreCard({ chore, onClaim, onComplete, onApprove, onReject, isAdmin }: ChoreCardProps) {
+export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onApprove, onReject, isAdmin }: ChoreCardProps) {
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleComplete = () => {
@@ -48,10 +50,13 @@ export function ChoreCard({ chore, onClaim, onComplete, onApprove, onReject, isA
     }
   };
 
+  const isAssignedToMe = chore.assignedTo === activeMemberName;
+
   return (
     <Card className={cn(
       "overflow-hidden transition-all hover:shadow-md border-2",
-      isAnimating && "celebrate-animation scale-105 shadow-xl border-accent"
+      isAnimating && "celebrate-animation scale-105 shadow-xl border-accent",
+      chore.status === 'overdue' && "border-destructive/30 grayscale-[0.5]"
     )}>
       <CardHeader className="p-4 pb-2 space-y-2">
         <div className="flex justify-between items-start">
@@ -69,15 +74,23 @@ export function ChoreCard({ chore, onClaim, onComplete, onApprove, onReject, isA
         <p className="text-sm text-muted-foreground line-clamp-2">
           {chore.description}
         </p>
-        <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-          <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {chore.dueDate}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {chore.dueDate}
+            </div>
+            <div className="flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {chore.frequency}
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <AlertCircle className="w-3 h-3" />
-            {chore.frequency}
-          </div>
+          {chore.assignedTo && (
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-primary bg-primary/5 w-fit px-2 py-0.5 rounded-md">
+              <User className="w-3 h-3" />
+              {chore.status === 'completed' ? `Mastered by ${chore.assignedTo}` : `Claimed by ${chore.assignedTo}`}
+            </div>
+          )}
         </div>
       </CardContent>
       <CardFooter className="p-4 bg-muted/5 border-t flex gap-2">
@@ -87,10 +100,10 @@ export function ChoreCard({ chore, onClaim, onComplete, onApprove, onReject, isA
             size="sm"
             onClick={() => onClaim?.(chore.id)}
           >
-            Claim Chore
+            Claim Mission
           </Button>
         )}
-        {chore.status === 'claimed' && (
+        {chore.status === 'claimed' && isAssignedToMe && (
           <Button 
             className="w-full bg-accent hover:bg-accent/90" 
             size="sm"
@@ -98,6 +111,16 @@ export function ChoreCard({ chore, onClaim, onComplete, onApprove, onReject, isA
           >
             Mark Complete
           </Button>
+        )}
+        {chore.status === 'claimed' && !isAssignedToMe && (
+          <Button variant="outline" className="w-full cursor-not-allowed opacity-50" size="sm" disabled>
+            Busy with {chore.assignedTo}
+          </Button>
+        )}
+        {chore.status === 'overdue' && (
+          <div className="flex items-center justify-center w-full gap-2 text-destructive text-xs font-bold py-1">
+            <AlertCircle className="w-4 h-4" /> Mission Failed (Expired)
+          </div>
         )}
         {chore.status === 'completed' && isAdmin && (
           <div className="grid grid-cols-2 w-full gap-2">
@@ -120,7 +143,7 @@ export function ChoreCard({ chore, onClaim, onComplete, onApprove, onReject, isA
         )}
         {chore.status === 'completed' && !isAdmin && (
           <Button variant="outline" className="w-full cursor-not-allowed opacity-70" size="sm" disabled>
-            Awaiting Approval
+            Awaiting Guardian Approval
           </Button>
         )}
       </CardFooter>
