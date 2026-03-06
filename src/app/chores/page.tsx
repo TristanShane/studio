@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Filter, Users, Calendar, Target, AlertTriangle } from "lucide-react";
+import { Plus, Search, Filter, Users, Calendar, Target, AlertTriangle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,40 +22,38 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 
-const INITIAL_CHORES: Chore[] = [
-  { id: "1", title: "Wash Dishes", description: "Empty the dishwasher and fill with dirty dishes.", points: 30, dueDate: "Today", status: 'pending', frequency: 'daily' },
-  { id: "2", title: "Mop Floors", description: "Mop the kitchen and hallway floors.", points: 100, dueDate: "Saturday", status: 'pending', frequency: 'weekly' },
-  { id: "3", title: "Take Out Trash", description: "Empty all trash cans and take them to the curb.", points: 40, dueDate: "Wednesday", status: 'claimed', assignedTo: "Sam", frequency: 'weekly' },
-  { id: "4", title: "Laundry", description: "Wash, dry, and fold two loads of laundry.", points: 120, dueDate: "Tomorrow", status: 'claimed', assignedTo: "Jordan", frequency: 'weekly' },
-  { id: "5", title: "Water Plants", description: "Water all indoor plants and the garden.", points: 20, dueDate: "Daily", status: 'completed', assignedTo: "Alex (Admin)", frequency: 'daily' },
+const MISSION_TEMPLATES = [
+  { title: "Wash Dishes", description: "Empty dishwasher and fill with new dishes.", points: 30, frequency: "daily", dueDate: "Tonight" },
+  { title: "Make Bed", description: "Straighten sheets and arrange pillows.", points: 10, frequency: "daily", dueDate: "Morning" },
+  { title: "Wipe Counters", description: "Clean kitchen and dining surfaces.", points: 20, frequency: "daily", dueDate: "Evening" },
+  { title: "Take Out Trash", description: "Collect all trash and take to the bin.", points: 50, frequency: "weekly", dueDate: "Wednesday" },
+  { title: "Vacuum Room", description: "Vacuum the entire floor area.", points: 100, frequency: "weekly", dueDate: "Weekend" },
+  { title: "Mow Lawn", description: "Trim the grass in front and back yards.", points: 300, frequency: "monthly", dueDate: "Next Saturday" },
+  { title: "Clean Windows", description: "Wash all main floor windows.", points: 250, frequency: "monthly", dueDate: "End of Month" },
 ];
 
 export default function ChoresPage() {
   const [chores, setChores] = useState<Chore[]>([]);
   const [activeTab, setActiveTab] = useState("pending");
-  const [activeMemberName, setActiveMemberName] = useState("Alex (Admin)");
   const [activeMemberId, setActiveMemberId] = useState("");
+  const [activeMemberName, setActiveMemberName] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isNewChoreOpen, setIsNewChoreOpen] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
   useEffect(() => {
     const updateFromStorage = () => {
       const savedChores = localStorage.getItem('household_chores');
-      if (savedChores) {
-        setChores(JSON.parse(savedChores));
-      } else {
-        localStorage.setItem('household_chores', JSON.stringify(INITIAL_CHORES));
-        setChores(INITIAL_CHORES);
-      }
+      if (savedChores) setChores(JSON.parse(savedChores));
 
       const savedMembers = localStorage.getItem('household_members');
-      const savedId = localStorage.getItem('activeMemberId');
-      if (savedMembers && savedId) {
+      const activeId = localStorage.getItem('activeMemberId');
+      if (savedMembers && activeId) {
         const members = JSON.parse(savedMembers);
-        const active = members.find((m: any) => m.id === savedId);
+        const active = members.find((m: any) => m.id === activeId);
         if (active) {
-          setActiveMemberName(active.name);
           setActiveMemberId(active.id);
+          setActiveMemberName(active.name);
           setIsAdmin(active.role?.toLowerCase() === 'admin' || active.role?.toLowerCase() === 'owner');
         }
       }
@@ -66,36 +64,66 @@ export default function ChoresPage() {
     return () => window.removeEventListener('storage', updateFromStorage);
   }, []);
 
+  const updateMemberStats = (memberId: string, pointDelta: number, streakAction: 'increment' | 'reset' | 'none') => {
+    const savedMembers = localStorage.getItem('household_members');
+    if (!savedMembers) return;
+    
+    const members = JSON.parse(savedMembers);
+    const updatedMembers = members.map((m: any) => {
+      if (m.id === memberId) {
+        let newStreak = m.streak || 0;
+        if (streakAction === 'increment') newStreak += 1;
+        if (streakAction === 'reset') newStreak = 0;
+        
+        const newPoints = (m.points || 0) + pointDelta;
+        
+        // Basic Achievement Logic
+        const achievements = m.achievements || [];
+        if (newPoints >= 1000 && !achievements.includes('xp-1000')) {
+          achievements.push('xp-1000');
+          toast({ title: "Achievement Unlocked!", description: `${m.name} earned 'XP Titan'!` });
+        }
+
+        return { ...m, points: newPoints, streak: newStreak, achievements };
+      }
+      return m;
+    });
+    
+    localStorage.setItem('household_members', JSON.stringify(updatedMembers));
+    window.dispatchEvent(new Event('storage'));
+  };
+
   const handleClaim = (id: string) => {
     const updated = chores.map(c => 
-      c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMemberName } : c
+      c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMemberName, assignedToId: activeMemberId } : c
     );
     saveChores(updated);
-    toast({
-      title: "Chore Claimed!",
-      description: `You've joined the battle for this mission.`,
-    });
+    toast({ title: "Chore Claimed!", description: `You've joined the battle for this mission.` });
   };
 
   const handleComplete = (id: string) => {
+    const chore = chores.find(c => c.id === id);
+    if (!chore) return;
+
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
     saveChores(updated);
-    toast({
-      title: "Victory Recorded!",
-      description: "Mission complete! Check the Victory Log.",
-    });
+    updateMemberStats(activeMemberId, chore.points, 'increment');
+    toast({ title: "Victory Recorded!", description: `+${chore.points} XP earned!` });
   };
 
   const handleRevoke = (id: string) => {
+    const chore = chores.find(c => c.id === id);
+    if (!chore) return;
+
     const updated = chores.map(c => 
-      c.id === id ? { ...c, status: 'pending' as const, assignedTo: undefined } : c
+      c.id === id ? { ...c, status: 'pending' as const, assignedTo: undefined, assignedToId: undefined } : c
     );
     saveChores(updated);
-    toast({
-      variant: "destructive",
-      title: "Mission Revoked",
-      description: "The chore has been returned to the board for review.",
-    });
+    // Revoking resets streak and removes the points earned (if it was completed)
+    if (chore.status === 'completed' && chore.assignedToId) {
+      updateMemberStats(chore.assignedToId, -chore.points, 'reset');
+    }
+    toast({ variant: "destructive", title: "Mission Revoked", description: "The chore has been returned to the board and streak was lost." });
   };
 
   const saveChores = (updated: Chore[]) => {
@@ -117,18 +145,23 @@ export default function ChoresPage() {
       status: 'pending'
     };
 
-    const updated = [...chores, newChore];
-    saveChores(updated);
+    saveChores([...chores, newChore]);
     setIsNewChoreOpen(false);
-    toast({
-      title: "New Mission Forged!",
-      description: "It's live on the Mission Board.",
-    });
+    setSelectedTemplate("");
+    toast({ title: "New Mission Forged!", description: "It's live on the Mission Board." });
+  };
+
+  const applyTemplate = (val: string) => {
+    const template = MISSION_TEMPLATES.find(t => t.title === val);
+    if (template) {
+      setSelectedTemplate(val);
+      // We'll use these values in the form via defaultValues or state if we wanted to be more reactive
+    }
   };
 
   const filteredChores = chores.filter(c => {
     if (activeTab === "pending") return c.status === 'pending';
-    if (activeTab === "my-chores") return c.assignedTo === activeMemberName && c.status === 'claimed';
+    if (activeTab === "my-chores") return c.assignedToId === activeMemberId && c.status === 'claimed';
     if (activeTab === "completed") return c.status === 'completed';
     return true;
   });
@@ -142,7 +175,7 @@ export default function ChoresPage() {
             <h1 className="text-3xl font-headline font-bold text-foreground">Mission Board</h1>
             <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
               <Users className="w-3 h-3" />
-              Battle Station: <span className="text-primary font-bold">{activeMemberName}</span>
+              Warrior: <span className="text-primary font-bold">{activeMemberName}</span>
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -167,35 +200,77 @@ export default function ChoresPage() {
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       <div className="grid gap-2">
+                        <Label>Quick Template</Label>
+                        <Select onValueChange={applyTemplate}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a common chore..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MISSION_TEMPLATES.map(t => (
+                              <SelectItem key={t.title} value={t.title}>{t.title} ({t.points} XP)</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="grid gap-2">
                         <Label htmlFor="title">Mission Name</Label>
-                        <Input id="title" name="title" placeholder="e.g. Empty the Battle Bin" required />
+                        <Input 
+                          id="title" 
+                          name="title" 
+                          defaultValue={MISSION_TEMPLATES.find(t => t.title === selectedTemplate)?.title || ""} 
+                          placeholder="e.g. Empty the Battle Bin" 
+                          required 
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="description">Mission Intel</Label>
-                        <Textarea id="description" name="description" placeholder="Requirements for victory..." required />
+                        <Textarea 
+                          id="description" 
+                          name="description" 
+                          defaultValue={MISSION_TEMPLATES.find(t => t.title === selectedTemplate)?.description || ""} 
+                          placeholder="Requirements for victory..." 
+                          required 
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
                           <Label htmlFor="points">XP Value</Label>
-                          <Input id="points" name="points" type="number" defaultValue="50" required />
+                          <Input 
+                            id="points" 
+                            name="points" 
+                            type="number" 
+                            defaultValue={MISSION_TEMPLATES.find(t => t.title === selectedTemplate)?.points || "50"} 
+                            required 
+                          />
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="frequency">Cycle</Label>
-                          <Select name="frequency" defaultValue="daily">
+                          <Select 
+                            name="frequency" 
+                            defaultValue={MISSION_TEMPLATES.find(t => t.title === selectedTemplate)?.frequency || "daily"}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Select frequency" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="daily">Daily</SelectItem>
                               <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
                               <SelectItem value="one-time">One-time</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="dueDate">Expires On (e.g. "Friday Night")</Label>
-                        <Input id="dueDate" name="dueDate" placeholder="Today, Tomorrow, Saturday..." required />
+                        <Label htmlFor="dueDate">Expires On</Label>
+                        <Input 
+                          id="dueDate" 
+                          name="dueDate" 
+                          defaultValue={MISSION_TEMPLATES.find(t => t.title === selectedTemplate)?.dueDate || "Tonight"} 
+                          placeholder="e.g. Friday Night" 
+                          required 
+                        />
                       </div>
                     </div>
                     <DialogFooter>

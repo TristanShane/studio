@@ -5,52 +5,31 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Plus, ChevronRight, Gift, Target, Users } from "lucide-react";
+import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 
-const MOCK_STATS = [
-  { label: "Current Points", value: "1,240", icon: Star, color: "bg-primary" },
-  { label: "Active Streak", value: "12 Days", icon: Flame, color: "bg-orange-500", trend: "+2 today" },
-  { label: "Chores Today", value: "3/5", icon: Trophy, color: "bg-accent" },
-];
-
-const INITIAL_CHORES: Chore[] = [
-  { id: "1", title: "Wash Dishes", description: "Empty the dishwasher and fill with dirty dishes.", points: 30, dueDate: "Today", status: 'pending', frequency: 'daily' },
-  { id: "2", title: "Mop Floors", description: "Mop the kitchen and hallway floors.", points: 100, dueDate: "Saturday", status: 'pending', frequency: 'weekly' },
-  { id: "3", title: "Take Out Trash", description: "Empty all trash cans and take them to the curb.", points: 40, dueDate: "Wednesday", status: 'claimed', assignedTo: "Sam", frequency: 'weekly' },
-  { id: "4", title: "Laundry", description: "Wash, dry, and fold two loads of laundry.", points: 120, dueDate: "Tomorrow", status: 'claimed', assignedTo: "Jordan", frequency: 'weekly' },
-  { id: "5", title: "Water Plants", description: "Water all indoor plants and the garden.", points: 20, dueDate: "Daily", status: 'completed', assignedTo: "Alex (Admin)", frequency: 'daily' },
-];
-
 export default function Dashboard() {
   const [chores, setChores] = useState<Chore[]>([]);
-  const [activeMemberName, setActiveMemberName] = useState("Alex (Admin)");
+  const [activeMember, setActiveMember] = useState<any>(null);
   const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly" });
 
   useEffect(() => {
     const updateFromStorage = () => {
       const savedChores = localStorage.getItem('household_chores');
-      if (savedChores) {
-        setChores(JSON.parse(savedChores));
-      } else {
-        localStorage.setItem('household_chores', JSON.stringify(INITIAL_CHORES));
-        setChores(INITIAL_CHORES);
-      }
+      if (savedChores) setChores(JSON.parse(savedChores));
 
       const savedMembers = localStorage.getItem('household_members');
       const activeId = localStorage.getItem('activeMemberId');
       if (savedMembers && activeId) {
         const members = JSON.parse(savedMembers);
         const active = members.find((m: any) => m.id === activeId);
-        if (active) setActiveMemberName(active.name);
+        if (active) setActiveMember(active);
       }
 
       const savedPrize = localStorage.getItem('household_prize');
-      if (savedPrize) {
-        setPrize(JSON.parse(savedPrize));
-      }
+      if (savedPrize) setPrize(JSON.parse(savedPrize));
     };
 
     updateFromStorage();
@@ -59,13 +38,40 @@ export default function Dashboard() {
   }, []);
 
   const handleComplete = (id: string) => {
+    const chore = chores.find(c => c.id === id);
+    if (!chore || !activeMember) return;
+
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
-    setChores(updated);
     localStorage.setItem('household_chores', JSON.stringify(updated));
+
+    // Update member stats
+    const savedMembers = localStorage.getItem('household_members');
+    if (savedMembers) {
+      const members = JSON.parse(savedMembers);
+      const updatedMembers = members.map((m: any) => {
+        if (m.id === activeMember.id) {
+          return {
+            ...m,
+            points: (m.points || 0) + chore.points,
+            streak: (m.streak || 0) + 1
+          };
+        }
+        return m;
+      });
+      localStorage.setItem('household_members', JSON.stringify(updatedMembers));
+    }
+
     window.dispatchEvent(new Event('storage'));
   };
 
-  const activeMissions = chores.filter(c => c.status === 'claimed' && c.assignedTo === activeMemberName);
+  const activeMissions = chores.filter(c => c.status === 'claimed' && c.assignedToId === activeMember?.id);
+  const choresTodayCount = chores.filter(c => c.status === 'completed' && c.assignedToId === activeMember?.id).length;
+
+  const stats = [
+    { label: "Current Points", value: (activeMember?.points || 0).toLocaleString(), icon: Star, color: "bg-primary" },
+    { label: "Active Streak", value: `${activeMember?.streak || 0} Days`, icon: Flame, color: "bg-orange-500" },
+    { label: "Chores Done Today", value: choresTodayCount, icon: Trophy, color: "bg-accent" },
+  ];
 
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20">
@@ -74,7 +80,7 @@ export default function Dashboard() {
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-headline font-bold text-foreground">Warrior HQ</h1>
-            <p className="text-muted-foreground">Currently playing as <span className="text-primary font-bold">{activeMemberName}</span></p>
+            <p className="text-muted-foreground">Currently playing as <span className="text-primary font-bold">{activeMember?.name || "Selecting..."}</span></p>
           </div>
           <div className="flex gap-2">
             <Button asChild className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
@@ -86,7 +92,7 @@ export default function Dashboard() {
         </section>
 
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {MOCK_STATS.map((stat, i) => (
+          {stats.map((stat, i) => (
             <StatCard key={i} {...stat} />
           ))}
         </section>
@@ -104,7 +110,7 @@ export default function Dashboard() {
                 <ChoreCard 
                   key={chore.id} 
                   chore={chore} 
-                  activeMemberName={activeMemberName}
+                  activeMemberName={activeMember?.name || ""}
                   onComplete={handleComplete}
                 />
               ))
@@ -126,7 +132,7 @@ export default function Dashboard() {
               <Users className="w-4 h-4 text-muted-foreground" />
             </div>
             <div className="space-y-6">
-              {chores.filter(c => c.status === 'completed').slice(0, 3).map((chore, i) => (
+              {chores.filter(c => c.status === 'completed').reverse().slice(0, 3).map((chore) => (
                 <div key={chore.id} className="flex gap-4">
                   <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
                     <Star className="w-5 h-5 text-accent" />
@@ -135,7 +141,7 @@ export default function Dashboard() {
                     <p className="text-sm font-medium">
                       <span className="font-bold">{chore.assignedTo}</span> completed <span className="text-primary font-bold">{chore.title}</span>
                     </p>
-                    <p className="text-xs text-muted-foreground">Just now • +{chore.points} points earned</p>
+                    <p className="text-xs text-muted-foreground">Just now • +{chore.points} XP earned</p>
                   </div>
                 </div>
               ))}

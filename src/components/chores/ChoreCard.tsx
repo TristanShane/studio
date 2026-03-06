@@ -16,7 +16,8 @@ export interface Chore {
   dueDate: string;
   status: 'pending' | 'claimed' | 'completed' | 'overdue';
   assignedTo?: string;
-  frequency: 'daily' | 'weekly' | 'one-time';
+  assignedToId?: string;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'one-time';
 }
 
 interface ChoreCardProps {
@@ -64,7 +65,7 @@ export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onRevo
           </Badge>
           <div className="flex items-center gap-1 text-primary font-bold">
             <Star className="w-4 h-4 fill-primary" />
-            <span>{chore.points}</span>
+            <span>{chore.points} XP</span>
           </div>
         </div>
         <h3 className="font-headline font-bold text-lg leading-tight">{chore.title}</h3>
@@ -77,7 +78,7 @@ export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onRevo
           <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
             <div className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              {chore.dueDate}
+              Due: {chore.dueDate}
             </div>
             <div className="flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
