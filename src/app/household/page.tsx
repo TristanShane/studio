@@ -130,8 +130,10 @@ export default function HouseholdPage() {
 
   const isOwner = household?.ownerId === user?.uid;
   const activeMember = members.find(m => m.id === activeMemberId);
-  // Important: Use the role of the *active* member to control editing
-  const isAdmin = activeMember?.role === 'Admin' || activeMember?.role === 'Owner' || isOwner;
+  
+  // CRITICAL: isAdmin is strictly tied to the active warrior's role.
+  // This prevents children from editing prizes even if the Guardian is logged in.
+  const isAdmin = activeMember?.role === 'Admin' || activeMember?.role === 'Owner';
 
   const copyInviteCode = () => {
     if (!household) return;
