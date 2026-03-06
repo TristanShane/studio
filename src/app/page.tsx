@@ -5,13 +5,14 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift, Plus } from "lucide-react";
+import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useUser, useFirestore } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { toast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const [activeMember, setActiveMember] = useState<any>(null);
   const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly" });
   const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -34,7 +36,32 @@ export default function Dashboard() {
     const checkHousehold = async () => {
       const q = query(collection(db, "households"), where("members", "array-contains", user.uid));
       const snapshot = await getDocs(q);
-      setHasHousehold(!snapshot.empty);
+      
+      if (!snapshot.empty) {
+        setHasHousehold(true);
+        const householdData = snapshot.docs[0].data();
+        
+        // If no active member is set in storage, default to the logged-in user
+        const savedActiveId = localStorage.getItem('activeMemberId');
+        if (!savedActiveId) {
+          const ownerProfile = {
+            id: user.uid,
+            name: user.displayName || "Guardian",
+            role: "Owner",
+            avatar: user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
+            type: 'Shield Guardian',
+            theme: 'member-1',
+            points: 0,
+            streak: 0
+          };
+          localStorage.setItem('activeMemberId', user.uid);
+          localStorage.setItem('household_members', JSON.stringify([ownerProfile]));
+          setActiveMember(ownerProfile);
+          window.dispatchEvent(new Event('storage'));
+        }
+      } else {
+        setHasHousehold(false);
+      }
     };
 
     checkHousehold();
@@ -62,15 +89,41 @@ export default function Dashboard() {
 
   const handleCreateHousehold = async () => {
     if (!user) return;
-    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    await addDoc(collection(db, "households"), {
-      name: `${user.displayName}'s Base`,
-      ownerId: user.uid,
-      inviteCode,
-      members: [user.uid],
-      createdAt: serverTimestamp()
-    });
-    setHasHousehold(true);
+    setIsCreating(true);
+    try {
+      const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      await addDoc(collection(db, "households"), {
+        name: `${user.displayName || 'Warrior'}'s Base`,
+        ownerId: user.uid,
+        inviteCode,
+        members: [user.uid],
+        createdAt: serverTimestamp()
+      });
+
+      // Initialize local storage for the shared tablet aspect
+      const ownerProfile = {
+        id: user.uid,
+        name: user.displayName || "Guardian",
+        role: "Owner",
+        avatar: user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
+        type: 'Shield Guardian',
+        theme: 'member-1',
+        points: 0,
+        streak: 0
+      };
+      localStorage.setItem('activeMemberId', user.uid);
+      localStorage.setItem('household_members', JSON.stringify([ownerProfile]));
+      localStorage.setItem('household_chores', JSON.stringify([]));
+      
+      setHasHousehold(true);
+      setActiveMember(ownerProfile);
+      window.dispatchEvent(new Event('storage'));
+      toast({ title: "Base Forged!", description: "Welcome to your new HQ, Guardian." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Construction Failed", description: e.message });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleComplete = (id: string) => {
@@ -100,23 +153,39 @@ export default function Dashboard() {
   };
 
   if (isUserLoading || hasHousehold === null) {
-    return <div className="min-h-screen flex items-center justify-center font-bold">Scanning Battle Status...</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+        <Swords className="w-12 h-12 text-primary animate-bounce" />
+        <h2 className="text-xl font-headline font-bold">Scanning Battle Status...</h2>
+      </div>
+    );
   }
 
   if (!hasHousehold) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md text-center space-y-6">
-          <div className="bg-primary/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-accent/5">
+        <div className="max-w-md w-full text-center space-y-8 bg-white p-8 rounded-3xl shadow-xl border-2 border-primary/10">
+          <div className="bg-primary/10 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto rotate-3 shadow-inner">
             <Users className="w-12 h-12 text-primary" />
           </div>
           <div className="space-y-2">
             <h1 className="text-3xl font-headline font-bold">Base Not Found</h1>
             <p className="text-muted-foreground">You are not part of a household yet. Would you like to build your own battle station?</p>
           </div>
-          <Button onClick={handleCreateHousehold} size="lg" className="w-full bg-primary font-bold">
-            Forge New Household HQ
+          <Button 
+            onClick={handleCreateHousehold} 
+            size="lg" 
+            disabled={isCreating}
+            className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg shadow-lg shadow-primary/20"
+          >
+            {isCreating ? "Constructing HQ..." : "Forge New Household HQ"}
           </Button>
+          <div className="pt-4 border-t">
+            <p className="text-xs text-muted-foreground mb-4">Already have a code from a family member?</p>
+            <Button variant="outline" asChild className="w-full">
+              <Link href="/login">Return to Login</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -174,8 +243,12 @@ export default function Dashboard() {
               ))
             ) : (
               <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-border shadow-sm">
-                <p className="text-muted-foreground">You haven't claimed any missions yet. Defend your home!</p>
-                <Button variant="link" asChild>
+                <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Target className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <h3 className="font-bold text-lg">No Active Missions</h3>
+                <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-4">You haven't claimed any tasks yet. Head to the board to earn some XP!</p>
+                <Button variant="outline" asChild className="border-primary text-primary font-bold">
                   <Link href="/chores">Open Mission Board</Link>
                 </Button>
               </div>
