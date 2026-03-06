@@ -1,10 +1,11 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Plus, ChevronRight } from "lucide-react";
+import { Flame, Star, Trophy, Plus, ChevronRight, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -22,7 +23,7 @@ const MOCK_CHORES: Chore[] = [
     points: 150, 
     dueDate: "Today, 6 PM", 
     status: 'claimed', 
-    assignedTo: "Alex", 
+    assignedTo: "Alex (Admin)", 
     frequency: 'weekly' 
   },
   { 
@@ -41,13 +42,27 @@ const MOCK_CHORES: Chore[] = [
     points: 50, 
     dueDate: "Today, 4 PM", 
     status: 'completed', 
-    assignedTo: "Alex", 
+    assignedTo: "Sam", 
     frequency: 'daily' 
   },
 ];
 
 export default function Dashboard() {
   const [chores, setChores] = useState<Chore[]>(MOCK_CHORES);
+  const [activeMemberName, setActiveMemberName] = useState("Alex (Admin)");
+
+  useEffect(() => {
+    const updateActiveMember = () => {
+      const savedId = localStorage.getItem('activeMemberId');
+      if (savedId === 'member-2') setActiveMemberName("Sam");
+      else if (savedId === 'member-3') setActiveMemberName("Jordan");
+      else setActiveMemberName("Alex (Admin)");
+    };
+
+    updateActiveMember();
+    window.addEventListener('storage', updateActiveMember);
+    return () => window.removeEventListener('storage', updateActiveMember);
+  }, []);
 
   const handleComplete = (id: string) => {
     setChores(prev => prev.map(c => c.id === id ? { ...c, status: 'completed' } : c));
@@ -60,12 +75,17 @@ export default function Dashboard() {
         {/* Header section */}
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-headline font-bold text-foreground">Welcome back, Alex!</h1>
-            <p className="text-muted-foreground">You're currently in <span className="text-primary font-bold">1st place</span> this week. Keep it up!</p>
+            <h1 className="text-3xl font-headline font-bold text-foreground">Warrior HQ</h1>
+            <p className="text-muted-foreground">Currently logged in as <span className="text-primary font-bold">{activeMemberName}</span></p>
           </div>
-          <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-            <Plus className="w-4 h-4 mr-2" /> Create Chore
-          </Button>
+          <div className="flex gap-2">
+             <Button variant="outline" className="hidden md:flex">
+              <User className="w-4 h-4 mr-2" /> Switch Warrior
+            </Button>
+            <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
+              <Plus className="w-4 h-4 mr-2" /> New Mission
+            </Button>
+          </div>
         </section>
 
         {/* Stats Grid */}
@@ -78,19 +98,28 @@ export default function Dashboard() {
         {/* Chores Section */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-headline font-bold">Today's Missions</h2>
+            <h2 className="text-xl font-headline font-bold">Your Active Missions</h2>
             <Link href="/chores" className="text-primary text-sm font-bold flex items-center hover:underline">
-              View all <ChevronRight className="w-4 h-4" />
+              View all board <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {chores.filter(c => c.status !== 'completed').map(chore => (
-              <ChoreCard 
-                key={chore.id} 
-                chore={chore} 
-                onComplete={handleComplete}
-              />
-            ))}
+            {chores.filter(c => c.status === 'claimed' && c.assignedTo === activeMemberName).length > 0 ? (
+              chores.filter(c => c.status === 'claimed' && c.assignedTo === activeMemberName).map(chore => (
+                <ChoreCard 
+                  key={chore.id} 
+                  chore={chore} 
+                  onComplete={handleComplete}
+                />
+              ))
+            ) : (
+              <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-border">
+                <p className="text-muted-foreground">No missions claimed yet. Go to the board to find one!</p>
+                <Button variant="link" asChild>
+                  <Link href="/chores">Open Mission Board</Link>
+                </Button>
+              </div>
+            )}
           </div>
         </section>
 
@@ -106,9 +135,9 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-sm font-medium">
-                      <span className="font-bold">Sam Smith</span> completed <span className="text-primary font-bold">Take out trash</span>
+                      <span className="font-bold">{i === 0 ? 'Sam' : i === 1 ? 'Jordan' : 'Alex'}</span> completed <span className="text-primary font-bold">Chore {i+1}</span>
                     </p>
-                    <p className="text-xs text-muted-foreground">2 hours ago • +30 points</p>
+                    <p className="text-xs text-muted-foreground">{i + 1} hours ago • +{30 * (i+1)} points</p>
                   </div>
                 </div>
               ))}
