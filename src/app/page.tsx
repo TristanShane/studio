@@ -15,45 +15,30 @@ const MOCK_STATS = [
   { label: "Chores Today", value: "3/5", icon: Trophy, color: "bg-accent" },
 ];
 
-const MOCK_CHORES: Chore[] = [
-  { 
-    id: "1", 
-    title: "Deep Clean Kitchen", 
-    description: "Wipe down all surfaces, clean the oven, and mop the floor.", 
-    points: 150, 
-    dueDate: "Today, 6 PM", 
-    status: 'claimed', 
-    assignedTo: "Alex Johnson", 
-    frequency: 'weekly' 
-  },
-  { 
-    id: "2", 
-    title: "Mow the Lawn", 
-    description: "Cut grass in both front and back yards. Edge the walkway.", 
-    points: 200, 
-    dueDate: "Tomorrow", 
-    status: 'pending', 
-    frequency: 'weekly' 
-  },
-  { 
-    id: "3", 
-    title: "Vacuum Living Room", 
-    description: "Vacuum thoroughly including under the sofa cushions.", 
-    points: 50, 
-    dueDate: "Today, 4 PM", 
-    status: 'completed', 
-    assignedTo: "Sam Smith", 
-    frequency: 'daily' 
-  },
+const INITIAL_CHORES: Chore[] = [
+  { id: "1", title: "Wash Dishes", description: "Empty the dishwasher and fill with dirty dishes.", points: 30, dueDate: "Today", status: 'pending', frequency: 'daily' },
+  { id: "2", title: "Mop Floors", description: "Mop the kitchen and hallway floors.", points: 100, dueDate: "Every Saturday", status: 'pending', frequency: 'weekly' },
+  { id: "3", title: "Take Out Trash", description: "Empty all trash cans and take them to the curb.", points: 40, dueDate: "Wednesday Night", status: 'claimed', assignedTo: "Sam", frequency: 'weekly' },
+  { id: "4", title: "Laundry", description: "Wash, dry, and fold two loads of laundry.", points: 120, dueDate: "Tomorrow", status: 'claimed', assignedTo: "Jordan", frequency: 'weekly' },
+  { id: "5", title: "Water Plants", description: "Water all indoor plants and the garden.", points: 20, dueDate: "Daily", status: 'completed', assignedTo: "Alex", frequency: 'daily' },
 ];
 
 export default function Dashboard() {
-  const [chores, setChores] = useState<Chore[]>(MOCK_CHORES);
+  const [chores, setChores] = useState<Chore[]>([]);
   const [activeMemberName, setActiveMemberName] = useState("Alex Johnson");
   const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly" });
 
   useEffect(() => {
     const updateFromStorage = () => {
+      // Get chores
+      const savedChores = localStorage.getItem('household_chores');
+      if (savedChores) {
+        setChores(JSON.parse(savedChores));
+      } else {
+        localStorage.setItem('household_chores', JSON.stringify(INITIAL_CHORES));
+        setChores(INITIAL_CHORES);
+      }
+
       // Get current active member
       const savedMembers = localStorage.getItem('household_members');
       const activeId = localStorage.getItem('activeMemberId');
@@ -61,8 +46,6 @@ export default function Dashboard() {
         const members = JSON.parse(savedMembers);
         const active = members.find((m: any) => m.id === activeId);
         if (active) setActiveMemberName(active.name);
-      } else {
-        setActiveMemberName("Alex Johnson");
       }
 
       // Get household prize
@@ -78,8 +61,13 @@ export default function Dashboard() {
   }, []);
 
   const handleComplete = (id: string) => {
-    setChores(prev => prev.map(c => c.id === id ? { ...c, status: 'completed' } : c));
+    const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
+    setChores(updated);
+    localStorage.setItem('household_chores', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
   };
+
+  const activeMissions = chores.filter(c => c.status === 'claimed' && c.assignedTo === activeMemberName);
 
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20">
@@ -89,11 +77,13 @@ export default function Dashboard() {
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-headline font-bold text-foreground">Warrior HQ</h1>
-            <p className="text-muted-foreground">Currently logged in as <span className="text-primary font-bold">{activeMemberName}</span></p>
+            <p className="text-muted-foreground">Currently playing as <span className="text-primary font-bold">{activeMemberName}</span></p>
           </div>
           <div className="flex gap-2">
-            <Button className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-              <Plus className="w-4 h-4 mr-2" /> New Mission
+            <Button asChild className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
+              <Link href="/chores">
+                <Plus className="w-4 h-4 mr-2" /> New Mission
+              </Link>
             </Button>
           </div>
         </section>
@@ -114,8 +104,8 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {chores.filter(c => c.status === 'claimed' && c.assignedTo === activeMemberName).length > 0 ? (
-              chores.filter(c => c.status === 'claimed' && c.assignedTo === activeMemberName).map(chore => (
+            {activeMissions.length > 0 ? (
+              activeMissions.map(chore => (
                 <ChoreCard 
                   key={chore.id} 
                   chore={chore} 

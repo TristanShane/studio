@@ -19,27 +19,44 @@ const INITIAL_CHORES: Chore[] = [
 ];
 
 export default function ChoresPage() {
-  const [chores, setChores] = useState<Chore[]>(INITIAL_CHORES);
+  const [chores, setChores] = useState<Chore[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [activeMemberName, setActiveMemberName] = useState("Alex (Admin)");
 
   useEffect(() => {
-    const updateActiveMember = () => {
+    const updateFromStorage = () => {
+      // Load Chores
+      const savedChores = localStorage.getItem('household_chores');
+      if (savedChores) {
+        setChores(JSON.parse(savedChores));
+      } else {
+        localStorage.setItem('household_chores', JSON.stringify(INITIAL_CHORES));
+        setChores(INITIAL_CHORES);
+      }
+
+      // Load Active Member
+      const savedMembers = localStorage.getItem('household_members');
       const savedId = localStorage.getItem('activeMemberId');
-      if (savedId === 'member-2') setActiveMemberName("Sam");
-      else if (savedId === 'member-3') setActiveMemberName("Jordan");
-      else setActiveMemberName("Alex (Admin)");
+      if (savedMembers && savedId) {
+        const members = JSON.parse(savedMembers);
+        const active = members.find((m: any) => m.id === savedId);
+        if (active) setActiveMemberName(active.name);
+      }
     };
 
-    updateActiveMember();
-    window.addEventListener('storage', updateActiveMember);
-    return () => window.removeEventListener('storage', updateActiveMember);
+    updateFromStorage();
+    window.addEventListener('storage', updateFromStorage);
+    return () => window.removeEventListener('storage', updateFromStorage);
   }, []);
 
   const handleClaim = (id: string) => {
-    setChores(prev => prev.map(c => 
+    const updated = chores.map(c => 
       c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMemberName } : c
-    ));
+    );
+    setChores(updated);
+    localStorage.setItem('household_chores', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+
     toast({
       title: "Chore Claimed!",
       description: `${activeMemberName} has joined the battle for this task.`,
@@ -47,7 +64,11 @@ export default function ChoresPage() {
   };
 
   const handleComplete = (id: string) => {
-    setChores(prev => prev.map(c => c.id === id ? { ...c, status: 'completed' as const } : c));
+    const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
+    setChores(updated);
+    localStorage.setItem('household_chores', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+
     toast({
       title: "Mission Accomplished!",
       description: "Wait for approval to get your points.",
