@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -23,37 +24,59 @@ const navItems = [
   { name: "Household", href: "/household", icon: Users },
 ];
 
-const HOUSEHOLD_MEMBERS = [
-  { id: "member-1", name: "Alex (Admin)", avatar: "https://picsum.photos/seed/alex/100/100", role: "admin", icon: Shield },
-  { id: "member-2", name: "Sam", avatar: "https://picsum.photos/seed/sam/100/100", role: "warrior", icon: Zap },
-  { id: "member-3", name: "Jordan", avatar: "https://picsum.photos/seed/jordan/100/100", role: "warrior", icon: Leaf },
+const DEFAULT_MEMBERS = [
+  { id: "member-1", name: "Alex (Admin)", avatar: "https://picsum.photos/seed/alex/100/100", role: "admin", icon: Shield, theme: 'member-1' },
+  { id: "member-2", name: "Sam", avatar: "https://picsum.photos/seed/sam/100/100", role: "warrior", icon: Zap, theme: 'member-2' },
+  { id: "member-3", name: "Jordan", avatar: "https://picsum.photos/seed/jordan/100/100", role: "warrior", icon: Leaf, theme: 'member-3' },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
-  const [activeMember, setActiveMember] = useState(HOUSEHOLD_MEMBERS[0]);
+  const [activeMember, setActiveMember] = useState(DEFAULT_MEMBERS[0]);
+  const [members, setMembers] = useState(DEFAULT_MEMBERS);
 
   useEffect(() => {
-    const saved = localStorage.getItem('activeMemberId');
-    if (saved) {
-      const found = HOUSEHOLD_MEMBERS.find(m => m.id === saved);
-      if (found) {
-        setActiveMember(found);
-        document.documentElement.setAttribute('data-theme', found.id);
+    const updateFromStorage = () => {
+      // Load all members
+      const savedMembers = localStorage.getItem('household_members');
+      if (savedMembers) {
+        setMembers(JSON.parse(savedMembers));
       }
-    } else {
-      document.documentElement.setAttribute('data-theme', 'member-1');
-    }
+
+      // Load active member
+      const savedActiveId = localStorage.getItem('activeMemberId');
+      const currentList = savedMembers ? JSON.parse(savedMembers) : DEFAULT_MEMBERS;
+      
+      if (savedActiveId) {
+        const found = currentList.find((m: any) => m.id === savedActiveId);
+        if (found) {
+          setActiveMember(found);
+          document.documentElement.setAttribute('data-theme', found.theme || found.id);
+        }
+      } else {
+        document.documentElement.setAttribute('data-theme', 'member-1');
+      }
+    };
+
+    updateFromStorage();
+    window.addEventListener('storage', updateFromStorage);
+    return () => window.removeEventListener('storage', updateFromStorage);
   }, []);
 
-  const handleSwitchMember = (member: typeof HOUSEHOLD_MEMBERS[0]) => {
+  const handleSwitchMember = (member: any) => {
     setActiveMember(member);
     localStorage.setItem('activeMemberId', member.id);
-    document.documentElement.setAttribute('data-theme', member.id);
+    document.documentElement.setAttribute('data-theme', member.theme || member.id);
     window.dispatchEvent(new Event('storage'));
   };
 
-  const MemberIcon = activeMember.icon;
+  const getMemberIcon = (member: any) => {
+    if (member.theme === 'member-2') return Zap;
+    if (member.theme === 'member-3') return Leaf;
+    return Shield;
+  };
+
+  const MemberIcon = getMemberIcon(activeMember);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border md:top-0 md:bottom-auto md:border-b md:border-t-0 py-2 px-4 md:px-8 shadow-sm">
@@ -83,10 +106,10 @@ export function Navbar() {
                 <ChevronDown className="w-3 h-3 opacity-50" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56 p-2">
+            <DropdownMenuContent align="start" className="w-64 p-2 max-h-[80vh] overflow-y-auto">
               <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Select Your Warrior</DropdownMenuLabel>
-              {HOUSEHOLD_MEMBERS.map((m) => {
-                const Icon = m.icon;
+              {members.map((m: any) => {
+                const Icon = getMemberIcon(m);
                 return (
                   <DropdownMenuItem key={m.id} onClick={() => handleSwitchMember(m)} className={cn(
                     "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all",

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Plus, ChevronRight } from "lucide-react";
+import { Flame, Star, Trophy, Plus, ChevronRight, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -23,7 +23,7 @@ const MOCK_CHORES: Chore[] = [
     points: 150, 
     dueDate: "Today, 6 PM", 
     status: 'claimed', 
-    assignedTo: "Alex (Admin)", 
+    assignedTo: "Alex Johnson", 
     frequency: 'weekly' 
   },
   { 
@@ -42,26 +42,39 @@ const MOCK_CHORES: Chore[] = [
     points: 50, 
     dueDate: "Today, 4 PM", 
     status: 'completed', 
-    assignedTo: "Sam", 
+    assignedTo: "Sam Smith", 
     frequency: 'daily' 
   },
 ];
 
 export default function Dashboard() {
   const [chores, setChores] = useState<Chore[]>(MOCK_CHORES);
-  const [activeMemberName, setActiveMemberName] = useState("Alex (Admin)");
+  const [activeMemberName, setActiveMemberName] = useState("Alex Johnson");
+  const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly" });
 
   useEffect(() => {
-    const updateActiveMember = () => {
-      const savedId = localStorage.getItem('activeMemberId');
-      if (savedId === 'member-2') setActiveMemberName("Sam");
-      else if (savedId === 'member-3') setActiveMemberName("Jordan");
-      else setActiveMemberName("Alex (Admin)");
+    const updateFromStorage = () => {
+      // Get current active member
+      const savedMembers = localStorage.getItem('household_members');
+      const activeId = localStorage.getItem('activeMemberId');
+      if (savedMembers && activeId) {
+        const members = JSON.parse(savedMembers);
+        const active = members.find((m: any) => m.id === activeId);
+        if (active) setActiveMemberName(active.name);
+      } else {
+        setActiveMemberName("Alex Johnson");
+      }
+
+      // Get household prize
+      const savedPrize = localStorage.getItem('household_prize');
+      if (savedPrize) {
+        setPrize(JSON.parse(savedPrize));
+      }
     };
 
-    updateActiveMember();
-    window.addEventListener('storage', updateActiveMember);
-    return () => window.removeEventListener('storage', updateActiveMember);
+    updateFromStorage();
+    window.addEventListener('storage', updateFromStorage);
+    return () => window.removeEventListener('storage', updateFromStorage);
   }, []);
 
   const handleComplete = (id: string) => {
@@ -143,12 +156,12 @@ export default function Dashboard() {
 
           <section className="bg-primary/5 p-6 rounded-2xl border border-primary/10 flex flex-col justify-center">
             <div className="text-center space-y-2">
-              <Trophy className="w-12 h-12 text-primary mx-auto" />
-              <h3 className="text-xl font-headline font-bold">Weekly Prize: Pizza Night</h3>
-              <p className="text-sm text-muted-foreground">The winner of this week's battle gets to choose the household dinner on Friday!</p>
-              <div className="pt-4">
-                <Button variant="outline" className="border-primary text-primary hover:bg-primary/5">
-                  View Rewards
+              <Gift className="w-12 h-12 text-primary mx-auto mb-2" />
+              <h3 className="text-xl font-headline font-bold">{prize.frequency} Prize: {prize.title}</h3>
+              <p className="text-sm text-muted-foreground">The winner of the {prize.frequency.toLowerCase()} battle gets to claim this treasure!</p>
+              <div className="pt-4 flex justify-center gap-2">
+                <Button variant="outline" className="border-primary text-primary hover:bg-primary/5" asChild>
+                  <Link href="/household">Change Reward</Link>
                 </Button>
               </div>
             </div>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Navbar } from "@/components/layout/Navbar";
@@ -6,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, UserPlus, Copy, LogOut, Settings, Swords, Zap, Leaf, Heart } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Shield, UserPlus, Copy, LogOut, Settings, Swords, Zap, Leaf, Heart, Trophy, Gift } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { 
   Dialog, 
@@ -17,17 +19,47 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const MEMBERS = [
-  { name: "Alex Johnson", role: "Owner", avatar: "https://picsum.photos/seed/alex/100/100", email: "alex@example.com", type: 'Guardian' },
-  { name: "Sam Smith", role: "Admin", avatar: "https://picsum.photos/seed/sam/100/100", type: 'Fire Warrior' },
-  { name: "Jordan Lee", role: "Member", avatar: "https://picsum.photos/seed/jordan/100/100", type: 'Nature Scout' },
+const INITIAL_MEMBERS = [
+  { id: "member-1", name: "Alex Johnson", role: "Owner", avatar: "https://picsum.photos/seed/alex/100/100", type: 'Guardian', theme: 'member-1' },
+  { id: "member-2", name: "Sam Smith", role: "Admin", avatar: "https://picsum.photos/seed/sam/100/100", type: 'Fire Warrior', theme: 'member-2' },
+  { id: "member-3", name: "Jordan Lee", role: "Member", avatar: "https://picsum.photos/seed/jordan/100/100", type: 'Nature Scout', theme: 'member-3' },
+];
+
+const PRE_POPULATED_PRIZES = [
+  "Pizza Night",
+  "Movie Night",
+  "Extra Screen Time (30m)",
+  "Choose Dessert",
+  "New Toy/Game",
+  "Ice Cream Outing",
+  "Stay Up Late Pass"
 ];
 
 export default function HouseholdPage() {
+  const [members, setMembers] = useState(INITIAL_MEMBERS);
   const [isAddWarriorOpen, setIsAddWarriorOpen] = useState(false);
+  const [prizeTitle, setPrizeTitle] = useState("Pizza Night");
+  const [prizeFrequency, setPrizeFrequency] = useState("Weekly");
   
+  // Load members and prize from local storage on mount
+  useEffect(() => {
+    const savedMembers = localStorage.getItem('household_members');
+    if (savedMembers) {
+      setMembers(JSON.parse(savedMembers));
+    } else {
+      localStorage.setItem('household_members', JSON.stringify(INITIAL_MEMBERS));
+    }
+
+    const savedPrize = localStorage.getItem('household_prize');
+    if (savedPrize) {
+      const parsed = JSON.parse(savedPrize);
+      setPrizeTitle(parsed.title);
+      setPrizeFrequency(parsed.frequency);
+    }
+  }, []);
+
   const copyInviteCode = () => {
     navigator.clipboard.writeText("BATTLE-2024-CHORE");
     toast({
@@ -36,28 +68,58 @@ export default function HouseholdPage() {
     });
   };
 
-  const handleRecruit = (e: React.FormEvent) => {
+  const handleRecruit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get('warrior-name') as string;
+    const theme = formData.get('warrior-path') as string || 'member-1';
+
+    const newMember = {
+      id: `member-${Date.now()}`,
+      name: name,
+      role: "Member",
+      avatar: `https://picsum.photos/seed/${name.toLowerCase()}/100/100`,
+      type: theme === 'member-2' ? 'Fire Warrior' : theme === 'member-3' ? 'Nature Scout' : 'Shield Guardian',
+      theme: theme
+    };
+
+    const updatedMembers = [...members, newMember];
+    setMembers(updatedMembers);
+    localStorage.setItem('household_members', JSON.stringify(updatedMembers));
+    
+    // Notify Navbar to update its list
+    window.dispatchEvent(new Event('storage'));
+
     setIsAddWarriorOpen(false);
     toast({
       title: "New Warrior Recruited!",
-      description: "Welcome to the household battle station.",
+      description: `${name} has joined the battle station!`,
+    });
+  };
+
+  const handleUpdatePrize = () => {
+    const prizeData = { title: prizeTitle, frequency: prizeFrequency };
+    localStorage.setItem('household_prize', JSON.stringify(prizeData));
+    window.dispatchEvent(new Event('storage'));
+    toast({
+      title: "Prize Updated!",
+      description: `The ${prizeFrequency} reward is now: ${prizeTitle}`,
     });
   };
 
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20">
       <Navbar />
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-headline font-bold">House HQ: The Avengers</h1>
-            <p className="text-muted-foreground">Manage your team of warriors and guardians.</p>
+            <p className="text-muted-foreground">Manage your team and set battle rewards.</p>
           </div>
           <div className="flex items-center gap-2">
             <Dialog open={isAddWarriorOpen} onOpenChange={setIsAddWarriorOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 font-bold">
+                <Button className="bg-primary hover:bg-primary/90 font-bold shadow-lg shadow-primary/20">
                   <Swords className="w-4 h-4 mr-2" /> Recruit Warrior
                 </Button>
               </DialogTrigger>
@@ -66,30 +128,51 @@ export default function HouseholdPage() {
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-headline">New Warrior Profile</DialogTitle>
                     <DialogDescription>
-                      Add a kid or family member to this tablet. No email required!
+                      Add a family member to this tablet. No email required!
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-6 py-6">
                     <div className="grid gap-2">
                       <Label htmlFor="warrior-name">Warrior Name</Label>
-                      <Input id="warrior-name" placeholder="e.g. Captain Cleanup" required className="bg-muted/50" />
+                      <Input id="warrior-name" name="warrior-name" placeholder="e.g. Captain Cleanup" required className="bg-muted/50" />
                     </div>
                     <div className="grid gap-2">
                       <Label>Choose Your Path (Theme)</Label>
+                      <input type="hidden" name="warrior-path" id="warrior-path-input" value="member-1" />
                       <div className="grid grid-cols-4 gap-2">
-                        <Button type="button" variant="outline" className="h-16 flex flex-col gap-1 border-2 border-orange-200 bg-orange-50 hover:bg-orange-100">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-2'}
+                          className="h-16 flex flex-col gap-1 border-2 border-orange-200 bg-orange-50 hover:bg-orange-100 focus:ring-2 focus:ring-orange-500"
+                        >
                           <Zap className="w-4 h-4 text-orange-600" />
                           <span className="text-[10px] font-bold">Fire</span>
                         </Button>
-                        <Button type="button" variant="outline" className="h-16 flex flex-col gap-1 border-2 border-green-200 bg-green-50 hover:bg-green-100">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-3'}
+                          className="h-16 flex flex-col gap-1 border-2 border-green-200 bg-green-50 hover:bg-green-100 focus:ring-2 focus:ring-green-500"
+                        >
                           <Leaf className="w-4 h-4 text-green-600" />
                           <span className="text-[10px] font-bold">Nature</span>
                         </Button>
-                        <Button type="button" variant="outline" className="h-16 flex flex-col gap-1 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-1'}
+                          className="h-16 flex flex-col gap-1 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 focus:ring-2 focus:ring-blue-500"
+                        >
                           <Shield className="w-4 h-4 text-blue-600" />
                           <span className="text-[10px] font-bold">Shield</span>
                         </Button>
-                        <Button type="button" variant="outline" className="h-16 flex flex-col gap-1 border-2 border-pink-200 bg-pink-50 hover:bg-pink-100">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-1'}
+                          className="h-16 flex flex-col gap-1 border-2 border-pink-200 bg-pink-50 hover:bg-pink-100 focus:ring-2 focus:ring-pink-500"
+                        >
                           <Heart className="w-4 h-4 text-pink-600" />
                           <span className="text-[10px] font-bold">Love</span>
                         </Button>
@@ -102,22 +185,19 @@ export default function HouseholdPage() {
                 </form>
               </DialogContent>
             </Dialog>
-            <Button variant="outline" size="icon">
-              <Settings className="w-5 h-5" />
-            </Button>
           </div>
         </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-2 space-y-6">
-            <Card className="border-none shadow-sm overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="border-none shadow-sm overflow-hidden bg-white">
               <CardHeader className="bg-primary/5 border-b">
                 <CardTitle className="text-xl">Battle Roster</CardTitle>
-                <CardDescription>Warriors sharing this tablet HQ.</CardDescription>
+                <CardDescription>Members currently sharing this Household.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                {MEMBERS.map((member, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 border-b last:border-0 hover:bg-muted/30 transition-colors">
+                {members.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between p-4 border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-4">
                       <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
                         <AvatarImage src={member.avatar} />
@@ -144,41 +224,90 @@ export default function HouseholdPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-destructive/20 bg-destructive/5">
-              <CardHeader>
-                <CardTitle className="text-xl text-destructive">Abandon Station</CardTitle>
+            <Card className="border-none shadow-sm bg-white overflow-hidden">
+              <CardHeader className="bg-accent/5 border-b">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-accent" />
+                  <CardTitle className="text-xl">Prize Command Center</CardTitle>
+                </div>
+                <CardDescription>Guardians: Decide the spoils of war for the winners!</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-bold">Leave Household</p>
-                    <p className="text-xs text-muted-foreground">This device will lose access to this House HQ.</p>
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="font-bold">Prize Frequency</Label>
+                    <Select value={prizeFrequency} onValueChange={setPrizeFrequency}>
+                      <SelectTrigger className="bg-muted/30">
+                        <SelectValue placeholder="Select Frequency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Daily">Daily Reward</SelectItem>
+                        <SelectItem value="Weekly">Weekly Grand Prize</SelectItem>
+                        <SelectItem value="Monthly">Monthly Mega Reward</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Button variant="destructive" size="sm">
-                    <LogOut className="w-4 h-4 mr-2" /> Leave
-                  </Button>
+                  <div className="space-y-2">
+                    <Label className="font-bold">Select Reward Type</Label>
+                    <Select value={prizeTitle} onValueChange={setPrizeTitle}>
+                      <SelectTrigger className="bg-muted/30">
+                        <SelectValue placeholder="Select Reward" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRE_POPULATED_PRIZES.map(p => (
+                          <SelectItem key={p} value={p}>{p}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-bold">Custom Reward Description</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Or type a custom prize here..." 
+                      value={prizeTitle} 
+                      onChange={(e) => setPrizeTitle(e.target.value)}
+                      className="bg-muted/30"
+                    />
+                    <Button onClick={handleUpdatePrize} className="bg-accent hover:bg-accent/90">
+                      Update Prize
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 flex items-start gap-3">
+                  <Gift className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-accent">Current Battle Goal:</p>
+                    <p className="text-sm text-muted-foreground">
+                      The winner of the {prizeFrequency.toLowerCase()} battle will receive: 
+                      <span className="text-foreground font-bold ml-1">{prizeTitle}</span>
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
-            <Card className="bg-accent/5 border-accent/20">
-              <CardHeader>
+            <Card className="bg-white border-none shadow-sm overflow-hidden">
+              <CardHeader className="bg-muted/50 border-b">
                 <CardTitle className="text-lg">Invite Online Warriors</CardTitle>
                 <CardDescription>Connect other tablets or phones.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-6 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="invite-code">Battle Secret Code</Label>
                   <div className="flex gap-2">
-                    <Input id="invite-code" value="BATTLE-2024" readOnly className="bg-white font-mono" />
+                    <Input id="invite-code" value="BATTLE-2024" readOnly className="bg-muted/20 font-mono" />
                     <Button variant="outline" size="icon" onClick={copyInviteCode}>
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-                <Button variant="outline" className="w-full border-accent text-accent hover:bg-accent/5">
+                <Button variant="outline" className="w-full border-accent text-accent hover:bg-accent/5 font-bold">
                   <UserPlus className="w-4 h-4 mr-2" /> Invite Guardian
                 </Button>
               </CardContent>
@@ -192,7 +321,7 @@ export default function HouseholdPage() {
               <ul className="text-xs space-y-3 text-muted-foreground">
                 <li className="flex gap-2">
                   <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">1</div>
-                  <span>Guardians can approve missions and create new ones.</span>
+                  <span>Guardians can approve missions and set prizes in HQ.</span>
                 </li>
                 <li className="flex gap-2">
                   <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">2</div>
