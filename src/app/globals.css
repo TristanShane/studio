@@ -30,6 +30,23 @@
     --chart-5: 27 87% 67%;
     --radius: 0.75rem;
   }
+
+  /* Member Themes */
+  [data-theme='member-1'] { /* Alex - Classic */
+    --primary: 250 50% 50%;
+    --accent: 220 70% 60%;
+  }
+  [data-theme='member-2'] { /* Sam - Fire */
+    --primary: 15 80% 50%;
+    --accent: 45 90% 50%;
+    --background: 15 20% 96%;
+  }
+  [data-theme='member-3'] { /* Jordan - Nature */
+    --primary: 142 70% 45%;
+    --accent: 160 80% 40%;
+    --background: 142 20% 96%;
+  }
+
   .dark {
     --background: 250 40% 10%;
     --foreground: 250 10% 98%;
@@ -58,7 +75,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body transition-colors duration-500;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline font-bold tracking-tight;
