@@ -1,3 +1,34 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "avatar-alex",
+      "description": "User profile avatar for Alex",
+      "imageUrl": "https://picsum.photos/seed/alex/200/200",
+      "imageHint": "profile avatar"
+    },
+    {
+      "id": "avatar-sam",
+      "description": "User profile avatar for Sam",
+      "imageUrl": "https://picsum.photos/seed/sam/200/200",
+      "imageHint": "profile avatar"
+    },
+    {
+      "id": "avatar-jordan",
+      "description": "User profile avatar for Jordan",
+      "imageUrl": "https://picsum.photos/seed/jordan/200/200",
+      "imageHint": "profile avatar"
+    },
+    {
+      "id": "badge-streak",
+      "description": "Badge for a 7-day chore streak",
+      "imageUrl": "https://picsum.photos/seed/streak/100/100",
+      "imageHint": "gold badge"
+    },
+    {
+      "id": "badge-cleaning",
+      "description": "Badge for master cleaner",
+      "imageUrl": "https://picsum.photos/seed/cleaning/100/100",
+      "imageHint": "blue badge"
+    }
+  ]
 }
