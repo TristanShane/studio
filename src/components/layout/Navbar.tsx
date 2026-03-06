@@ -2,8 +2,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, List, Trophy, Users, User, Bell, ChevronDown, UserCheck, Shield, Zap, Leaf } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Home, List, Trophy, Users, User, Bell, ChevronDown, UserCheck, Shield, Zap, Leaf, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,6 +16,8 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/firebase";
+import { signOut } from "firebase/auth";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -32,6 +34,8 @@ const DEFAULT_MEMBERS = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const auth = useAuth();
   const [activeMember, setActiveMember] = useState(DEFAULT_MEMBERS[0]);
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
 
@@ -68,6 +72,21 @@ export function Navbar() {
     localStorage.setItem('activeMemberId', member.id);
     document.documentElement.setAttribute('data-theme', member.theme || member.id);
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // Clear local shared tablet state
+      localStorage.removeItem('activeMemberId');
+      localStorage.removeItem('household_members');
+      localStorage.removeItem('household_chores');
+      localStorage.removeItem('household_prize');
+      // Redirect to login
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
   };
 
   const getMemberIcon = (member: any) => {
@@ -187,7 +206,9 @@ export function Navbar() {
                   <User className="w-4 h-4" /> My Profile
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">Logout Battle Station</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive cursor-pointer" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" /> Logout Battle Station
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
