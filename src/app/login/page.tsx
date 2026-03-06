@@ -22,7 +22,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Persistence logic: if already logged in, redirect home
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push("/");
@@ -37,7 +36,6 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const authenticatedUser = result.user;
 
-      // Ensure user profile exists
       await setDoc(doc(db, "users", authenticatedUser.uid), {
         id: authenticatedUser.uid,
         name: authenticatedUser.displayName || "Unknown Warrior",
@@ -54,7 +52,7 @@ export default function LoginPage() {
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/operation-not-allowed') {
-        setAuthError("Google Sign-In is not enabled in the Firebase Console. Please enable it in Authentication > Sign-in method.");
+        setAuthError("Google Sign-In is not enabled. Please enable it in the Firebase Console (Authentication > Sign-in method).");
       } else {
         toast({ variant: "destructive", title: "Login Failed", description: error.message });
       }
@@ -84,6 +82,7 @@ export default function LoginPage() {
       requestedAt: new Date().toISOString()
     });
 
+    localStorage.setItem('pending_join_request', 'true');
     toast({ title: "Request Sent!", description: "The Guardian must approve your entry into the household." });
     router.push("/");
   };
@@ -112,7 +111,7 @@ export default function LoginPage() {
           {authError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Configuration Error</AlertTitle>
+              <AlertTitle>Setup Required</AlertTitle>
               <AlertDescription>{authError}</AlertDescription>
             </Alert>
           )}
@@ -141,17 +140,10 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-4 text-center">
           <p className="text-xs text-muted-foreground">
-            By entering the battle, you agree to our House Rules.
+            Recruiting a new device? Enter the secret code from your main base HQ first.
           </p>
         </CardFooter>
       </Card>
-      
-      <div className="fixed bottom-10 left-10 opacity-20 hidden lg:block">
-        <Shield className="w-32 h-32 text-primary" />
-      </div>
-      <div className="fixed top-10 right-10 opacity-20 hidden lg:block">
-        <Sparkles className="w-32 h-32 text-accent" />
-      </div>
     </div>
   );
 }

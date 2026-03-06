@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { Navbar, AppNotification } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift, Swords } from "lucide-react";
+import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift, Swords, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ export default function Dashboard() {
   const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly" });
   const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isPendingRequest, setIsPendingRequest] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -34,10 +36,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
 
+    // Check if we have a pending request flag in local storage
+    setIsPendingRequest(localStorage.getItem('pending_join_request') === 'true');
+
     const q = query(collection(db, "households"), where("members", "array-contains", user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         setHasHousehold(true);
+        setIsPendingRequest(false);
+        localStorage.removeItem('pending_join_request');
         
         const savedActiveId = localStorage.getItem('activeMemberId');
         if (!savedActiveId) {
@@ -90,20 +97,6 @@ export default function Dashboard() {
     };
   }, [user, db]);
 
-  const addNotification = (message: string, type: AppNotification['type']) => {
-    const saved = localStorage.getItem('household_notifications');
-    const notifications: AppNotification[] = saved ? JSON.parse(saved) : [];
-    const newNotif: AppNotification = {
-      id: `notif-${Date.now()}`,
-      message,
-      timestamp: new Date().toISOString(),
-      isRead: false,
-      type
-    };
-    localStorage.setItem('household_notifications', JSON.stringify([...notifications, newNotif]));
-    window.dispatchEvent(new Event('storage'));
-  };
-
   const handleCreateHousehold = async () => {
     if (!user) return;
     setIsCreating(true);
@@ -138,13 +131,6 @@ export default function Dashboard() {
       window.dispatchEvent(new Event('storage'));
       toast({ title: "Base Forged!", description: "Welcome to your new HQ, Guardian." });
     })
-    .catch((err) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: hRef.path,
-        operation: 'create',
-        requestResourceData: { ownerId: user.uid, inviteCode }
-      }));
-    })
     .finally(() => {
       setIsCreating(false);
     });
@@ -173,7 +159,6 @@ export default function Dashboard() {
       localStorage.setItem('household_members', JSON.stringify(updatedMembers));
     }
 
-    addNotification(`${activeMember.name} completed the mission: ${chore.title}! (+${chore.points} XP)`, 'completion');
     window.dispatchEvent(new Event('storage'));
   };
 
@@ -190,27 +175,47 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-accent/5">
         <div className="max-w-md w-full text-center space-y-8 bg-white p-8 rounded-3xl shadow-xl border-2 border-primary/10">
-          <div className="bg-primary/10 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto rotate-3 shadow-inner">
-            <Users className="w-12 h-12 text-primary" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-headline font-bold">Base Not Found</h1>
-            <p className="text-muted-foreground">You are not part of a household yet. Would you like to build your own battle station?</p>
-          </div>
-          <Button 
-            onClick={handleCreateHousehold} 
-            size="lg" 
-            disabled={isCreating}
-            className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg shadow-lg shadow-primary/20"
-          >
-            {isCreating ? "Constructing HQ..." : "Forge New Household HQ"}
-          </Button>
-          <div className="pt-4 border-t">
-            <p className="text-xs text-muted-foreground mb-4">Already have a code from a family member?</p>
-            <Button variant="outline" asChild className="w-full">
-              <Link href="/login">Return to Login</Link>
-            </Button>
-          </div>
+          {isPendingRequest ? (
+            <>
+              <div className="bg-accent/10 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
+                <Clock className="w-12 h-12 text-accent" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-headline font-bold">Access Pending</h1>
+                <p className="text-muted-foreground">Your request to join the household has been sent. The Guardian must approve you from their Base HQ.</p>
+              </div>
+              <Button variant="outline" onClick={() => {
+                localStorage.removeItem('pending_join_request');
+                setIsPendingRequest(false);
+              }} className="w-full">
+                Cancel Request & Start Over
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="bg-primary/10 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto rotate-3 shadow-inner">
+                <Users className="w-12 h-12 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-headline font-bold">Base Not Found</h1>
+                <p className="text-muted-foreground">You are not part of a household yet. Would you like to build your own battle station?</p>
+              </div>
+              <Button 
+                onClick={handleCreateHousehold} 
+                size="lg" 
+                disabled={isCreating}
+                className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg shadow-lg shadow-primary/20"
+              >
+                {isCreating ? "Constructing HQ..." : "Forge New Household HQ"}
+              </Button>
+              <div className="pt-4 border-t">
+                <p className="text-xs text-muted-foreground mb-4">Entering an existing base? Logout and use a Battle Code.</p>
+                <Button variant="outline" asChild className="w-full">
+                  <Link href="/login">Return to Login</Link>
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -280,49 +285,6 @@ export default function Dashboard() {
             )}
           </div>
         </section>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section className="bg-white p-6 rounded-2xl border border-border shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-headline font-bold">Household Activity</h3>
-              <Users className="w-4 h-4 text-muted-foreground" />
-            </div>
-            <div className="space-y-6">
-              {chores.filter(c => c.status === 'completed').reverse().slice(0, 3).map((chore) => (
-                <div key={chore.id} className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                    <Star className="w-5 h-5 text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      <span className="font-bold">{chore.assignedTo}</span> completed <span className="text-primary font-bold">{chore.title}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">Just now • +{chore.points} XP earned</p>
-                  </div>
-                </div>
-              ))}
-              {chores.filter(c => c.status === 'completed').length === 0 && (
-                <p className="text-center py-8 text-sm text-muted-foreground italic">No victories reported today... yet.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="bg-primary/5 p-6 rounded-2xl border border-primary/10 flex flex-col justify-center shadow-inner">
-            <div className="text-center space-y-2">
-              <div className="relative inline-block">
-                <Gift className="w-12 h-12 text-primary mx-auto mb-2" />
-                <Badge className="absolute -top-1 -right-4 bg-accent text-white border-none text-[10px] uppercase font-bold">{prize.frequency}</Badge>
-              </div>
-              <h3 className="text-xl font-headline font-bold">Battle Treasure: {prize.title}</h3>
-              <p className="text-sm text-muted-foreground max-w-xs mx-auto">The top warrior of the {prize.frequency.toLowerCase()} battle claims this reward!</p>
-              <div className="pt-4 flex justify-center gap-2">
-                <Button variant="outline" className="border-primary text-primary hover:bg-primary/5 h-8 text-xs font-bold" asChild>
-                  <Link href="/household">Change Goal</Link>
-                </Button>
-              </div>
-            </div>
-          </section>
-        </div>
       </main>
     </div>
   );
