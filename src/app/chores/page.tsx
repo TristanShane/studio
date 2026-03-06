@@ -1,11 +1,10 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
-import { Navbar } from "@/components/layout/Navbar";
+import { Navbar, AppNotification } from "@/components/layout/Navbar";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Filter, Users, Calendar, Target, AlertTriangle, Sparkles } from "lucide-react";
+import { Plus, Search, Users, Target, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +63,20 @@ export default function ChoresPage() {
     return () => window.removeEventListener('storage', updateFromStorage);
   }, []);
 
+  const addNotification = (message: string, type: AppNotification['type']) => {
+    const saved = localStorage.getItem('household_notifications');
+    const notifications: AppNotification[] = saved ? JSON.parse(saved) : [];
+    const newNotif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      message,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      type
+    };
+    localStorage.setItem('household_notifications', JSON.stringify([...notifications, newNotif]));
+    window.dispatchEvent(new Event('storage'));
+  };
+
   const updateMemberStats = (memberId: string, pointDelta: number, streakAction: 'increment' | 'reset' | 'none') => {
     const savedMembers = localStorage.getItem('household_members');
     if (!savedMembers) return;
@@ -77,7 +90,6 @@ export default function ChoresPage() {
         
         const newPoints = (m.points || 0) + pointDelta;
         
-        // Basic Achievement Logic
         const achievements = m.achievements || [];
         if (newPoints >= 1000 && !achievements.includes('xp-1000')) {
           achievements.push('xp-1000');
@@ -94,10 +106,12 @@ export default function ChoresPage() {
   };
 
   const handleClaim = (id: string) => {
+    const chore = chores.find(c => c.id === id);
     const updated = chores.map(c => 
       c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMemberName, assignedToId: activeMemberId } : c
     );
     saveChores(updated);
+    addNotification(`${activeMemberName} has joined the battle for: ${chore?.title}`, 'claim');
     toast({ title: "Chore Claimed!", description: `You've joined the battle for this mission.` });
   };
 
@@ -108,6 +122,7 @@ export default function ChoresPage() {
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
     saveChores(updated);
     updateMemberStats(activeMemberId, chore.points, 'increment');
+    addNotification(`${activeMemberName} completed the mission: ${chore.title}! (+${chore.points} XP)`, 'completion');
     toast({ title: "Victory Recorded!", description: `+${chore.points} XP earned!` });
   };
 
@@ -119,7 +134,6 @@ export default function ChoresPage() {
       c.id === id ? { ...c, status: 'pending' as const, assignedTo: undefined, assignedToId: undefined } : c
     );
     saveChores(updated);
-    // Revoking resets streak and removes the points earned (if it was completed)
     if (chore.status === 'completed' && chore.assignedToId) {
       updateMemberStats(chore.assignedToId, -chore.points, 'reset');
     }
@@ -155,7 +169,6 @@ export default function ChoresPage() {
     const template = MISSION_TEMPLATES.find(t => t.title === val);
     if (template) {
       setSelectedTemplate(val);
-      // We'll use these values in the form via defaultValues or state if we wanted to be more reactive
     }
   };
 

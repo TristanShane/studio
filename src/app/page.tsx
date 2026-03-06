@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
-import { Navbar } from "@/components/layout/Navbar";
+import { Navbar, AppNotification } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
 import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift, Swords } from "lucide-react";
@@ -41,7 +40,6 @@ export default function Dashboard() {
         setHasHousehold(true);
         const householdData = snapshot.docs[0].data();
         
-        // If no active member is set in storage, default to the logged-in user
         const savedActiveId = localStorage.getItem('activeMemberId');
         if (!savedActiveId) {
           const ownerProfile = {
@@ -87,6 +85,20 @@ export default function Dashboard() {
     return () => window.removeEventListener('storage', updateFromStorage);
   }, [user, db]);
 
+  const addNotification = (message: string, type: AppNotification['type']) => {
+    const saved = localStorage.getItem('household_notifications');
+    const notifications: AppNotification[] = saved ? JSON.parse(saved) : [];
+    const newNotif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      message,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      type
+    };
+    localStorage.setItem('household_notifications', JSON.stringify([...notifications, newNotif]));
+    window.dispatchEvent(new Event('storage'));
+  };
+
   const handleCreateHousehold = async () => {
     if (!user) return;
     setIsCreating(true);
@@ -100,7 +112,6 @@ export default function Dashboard() {
         createdAt: serverTimestamp()
       });
 
-      // Initialize local storage for the shared tablet aspect
       const ownerProfile = {
         id: user.uid,
         name: user.displayName || "Guardian",
@@ -114,6 +125,7 @@ export default function Dashboard() {
       localStorage.setItem('activeMemberId', user.uid);
       localStorage.setItem('household_members', JSON.stringify([ownerProfile]));
       localStorage.setItem('household_chores', JSON.stringify([]));
+      localStorage.setItem('household_notifications', JSON.stringify([]));
       
       setHasHousehold(true);
       setActiveMember(ownerProfile);
@@ -149,6 +161,7 @@ export default function Dashboard() {
       localStorage.setItem('household_members', JSON.stringify(updatedMembers));
     }
 
+    addNotification(`${activeMember.name} completed the mission: ${chore.title}! (+${chore.points} XP)`, 'completion');
     window.dispatchEvent(new Event('storage'));
   };
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, List, Trophy, Users, User, Bell, ChevronDown, UserCheck, Shield, Zap, Leaf, Heart, LogOut } from "lucide-react";
+import { Home, List, Trophy, Users, User, Bell, ChevronDown, UserCheck, Shield, Zap, Leaf, Heart, LogOut, Trash2, CheckCircle2, Swords } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,9 +14,16 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/firebase";
 import { signOut } from "firebase/auth";
+import { formatDistanceToNow } from "date-fns";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -29,12 +36,22 @@ const DEFAULT_MEMBERS = [
   { id: "member-1", name: "Alex (Admin)", avatar: "https://picsum.photos/seed/alex/100/100", role: "admin", icon: Shield, theme: 'member-1' },
 ];
 
+export interface AppNotification {
+  id: string;
+  message: string;
+  timestamp: string;
+  isRead: boolean;
+  type: 'completion' | 'claim' | 'system';
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const auth = useAuth();
   const [activeMember, setActiveMember] = useState(DEFAULT_MEMBERS[0]);
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
     const updateFromStorage = () => {
@@ -54,8 +71,14 @@ export function Navbar() {
           setActiveMember(found);
           document.documentElement.setAttribute('data-theme', found.theme || found.id);
         }
-      } else {
-        document.documentElement.setAttribute('data-theme', 'member-1');
+      }
+
+      // Load notifications
+      const savedNotifications = localStorage.getItem('household_notifications');
+      if (savedNotifications) {
+        const parsed = JSON.parse(savedNotifications);
+        setNotifications(parsed);
+        setHasUnread(parsed.some((n: AppNotification) => !n.isRead));
       }
     };
 
@@ -74,16 +97,30 @@ export function Navbar() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // Clear local shared tablet state
       localStorage.removeItem('activeMemberId');
       localStorage.removeItem('household_members');
       localStorage.removeItem('household_chores');
       localStorage.removeItem('household_prize');
-      // Redirect to login
+      localStorage.removeItem('household_notifications');
       router.push("/login");
     } catch (error) {
       console.error("Logout failed", error);
     }
+  };
+
+  const markAllAsRead = () => {
+    const updated = notifications.map(n => ({ ...n, isRead: true }));
+    setNotifications(updated);
+    setHasUnread(false);
+    localStorage.setItem('household_notifications', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+    setHasUnread(false);
+    localStorage.setItem('household_notifications', JSON.stringify([]));
+    window.dispatchEvent(new Event('storage'));
   };
 
   const getMemberIcon = (member: any) => {
@@ -182,22 +219,63 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
-          <Button variant="ghost" size="icon" className="relative hover:bg-primary/5">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full border-2 border-white"></span>
-          </Button>
+          <Popover onOpenChange={(open) => { if (open && hasUnread) markAllAsRead(); }}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative hover:bg-primary/5">
+                <Bell className="w-5 h-5" />
+                {hasUnread && (
+                  <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-destructive rounded-full border border-white"></span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0" align="end">
+              <div className="flex items-center justify-between p-4 border-b">
+                <h4 className="font-bold text-sm">Notifications</h4>
+                <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold text-muted-foreground hover:text-destructive" onClick={clearNotifications}>
+                  <Trash2 className="w-3 h-3 mr-1" /> Clear
+                </Button>
+              </div>
+              <ScrollArea className="h-72">
+                {notifications.length > 0 ? (
+                  <div className="divide-y">
+                    {[...notifications].reverse().map((n) => (
+                      <div key={n.id} className={cn("p-4 flex gap-3 transition-colors", !n.isRead && "bg-primary/5")}>
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                          n.type === 'completion' ? "bg-green-100 text-green-600" : "bg-blue-100 text-blue-600"
+                        )}>
+                          {n.type === 'completion' ? <CheckCircle2 className="w-4 h-4" /> : <Swords className="w-4 h-4" />}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs leading-tight font-medium">{n.message}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center space-y-2">
+                    <Bell className="w-8 h-8 text-muted-foreground mx-auto opacity-20" />
+                    <p className="text-xs text-muted-foreground italic">No recent activity.</p>
+                  </div>
+                )}
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="p-1 rounded-full">
                 <Avatar className="h-8 w-8 border-2 border-primary/20">
-                  <AvatarImage src="https://picsum.photos/seed/user1/200/200" />
-                  <AvatarFallback>JD</AvatarFallback>
+                  <AvatarImage src={activeMember.avatar} />
+                  <AvatarFallback>{activeMember.name.charAt(0)}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Parent Controls</DropdownMenuLabel>
+              <DropdownMenuLabel>Warrior Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link href="/profile" className="flex items-center gap-2 cursor-pointer w-full">
