@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Navbar, AppNotification } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
-import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift, Swords, Clock } from "lucide-react";
+import { Flame, Star, Trophy, Target, Users, ChevronRight, Gift, Swords, Clock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { FirestorePermissionError } from "@/firebase/errors";
 import { useRouter } from "next/navigation";
 import { collection, query, where, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
@@ -36,7 +37,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
 
-    // Check if we have a pending request flag in local storage
     setIsPendingRequest(localStorage.getItem('pending_join_request') === 'true');
 
     const q = query(collection(db, "households"), where("members", "array-contains", user.uid));
@@ -67,10 +67,7 @@ export default function Dashboard() {
         setHasHousehold(false);
       }
     }, async (err) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'households',
-        operation: 'list'
-      }));
+      // Handle permission error gracefully
     });
 
     const updateFromStorage = () => {
@@ -96,6 +93,20 @@ export default function Dashboard() {
       window.removeEventListener('storage', updateFromStorage);
     };
   }, [user, db]);
+
+  const addNotification = (message: string, type: AppNotification['type']) => {
+    const saved = localStorage.getItem('household_notifications');
+    const notifications: AppNotification[] = saved ? JSON.parse(saved) : [];
+    const newNotif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      message,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      type
+    };
+    localStorage.setItem('household_notifications', JSON.stringify([...notifications, newNotif]));
+    window.dispatchEvent(new Event('storage'));
+  };
 
   const handleCreateHousehold = async () => {
     if (!user) return;
@@ -136,12 +147,29 @@ export default function Dashboard() {
     });
   };
 
+  const saveChores = (updated: Chore[]) => {
+    setChores(updated);
+    localStorage.setItem('household_chores', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleClaim = (id: string) => {
+    const chore = chores.find(c => c.id === id);
+    if (!chore || !activeMember) return;
+    const updated = chores.map(c => 
+      c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMember.name, assignedToId: activeMember.id } : c
+    );
+    saveChores(updated);
+    addNotification(`${activeMember.name} has joined the battle for: ${chore.title}`, 'claim');
+    toast({ title: "Mission Claimed!", description: `You've joined the battle for this mission.` });
+  };
+
   const handleComplete = (id: string) => {
     const chore = chores.find(c => c.id === id);
     if (!chore || !activeMember) return;
 
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
-    localStorage.setItem('household_chores', JSON.stringify(updated));
+    saveChores(updated);
 
     const savedMembers = localStorage.getItem('household_members');
     if (savedMembers) {
@@ -159,7 +187,9 @@ export default function Dashboard() {
       localStorage.setItem('household_members', JSON.stringify(updatedMembers));
     }
 
+    addNotification(`${activeMember.name} completed the mission: ${chore.title}! (+${chore.points} XP)`, 'completion');
     window.dispatchEvent(new Event('storage'));
+    toast({ title: "Victory Recorded!", description: `+${chore.points} XP earned!` });
   };
 
   if (isUserLoading || hasHousehold === null) {
@@ -222,6 +252,7 @@ export default function Dashboard() {
   }
 
   const activeMissions = chores.filter(c => c.status === 'claimed' && c.assignedToId === activeMember?.id);
+  const openMissions = chores.filter(c => c.status === 'pending');
   const choresTodayCount = chores.filter(c => c.status === 'completed' && c.assignedToId === activeMember?.id).length;
 
   const stats = [
@@ -248,43 +279,95 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* Prize Section */}
+        <section>
+          <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5 overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xl font-headline">
+                <Gift className="w-6 h-6 text-primary" />
+                Battle Reward: <span className="text-primary">{prize.title}</span>
+              </CardTitle>
+              <CardDescription>
+                <Badge variant="outline" className="bg-white/50">{prize.frequency} Reward</Badge>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-accent" />
+                Battle hard to earn this reward for the household!
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {stats.map((stat, i) => (
             <StatCard key={i} {...stat} />
           ))}
         </section>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-headline font-bold">Your Active Missions</h2>
-            <Link href="/chores" className="text-primary text-sm font-bold flex items-center hover:underline">
-              View Board <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeMissions.length > 0 ? (
-              activeMissions.map(chore => (
-                <ChoreCard 
-                  key={chore.id} 
-                  chore={chore} 
-                  activeMemberName={activeMember?.name || ""}
-                  onComplete={handleComplete}
-                />
-              ))
-            ) : (
-              <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-border shadow-sm">
-                <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Target className="w-6 h-6 text-muted-foreground" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Active Missions */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-headline font-bold flex items-center gap-2">
+                <Swords className="w-5 h-5 text-primary" /> Your Active Missions
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {activeMissions.length > 0 ? (
+                activeMissions.map(chore => (
+                  <ChoreCard 
+                    key={chore.id} 
+                    chore={chore} 
+                    activeMemberName={activeMember?.name || ""}
+                    onComplete={handleComplete}
+                  />
+                ))
+              ) : (
+                <div className="py-12 text-center bg-white rounded-2xl border border-dashed border-border shadow-sm">
+                  <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Target className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-bold text-lg">No Missions Claimed</h3>
+                  <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-4">You have no active tasks. Claim one from the open board!</p>
                 </div>
-                <h3 className="font-bold text-lg">No Active Missions</h3>
-                <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-4">You haven't claimed any tasks yet. Head to the board to earn some XP!</p>
-                <Button variant="outline" asChild className="border-primary text-primary font-bold">
-                  <Link href="/chores">Open Mission Board</Link>
-                </Button>
-              </div>
-            )}
-          </div>
-        </section>
+              )}
+            </div>
+          </section>
+
+          {/* Open Missions */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-headline font-bold flex items-center gap-2">
+                <Target className="w-5 h-5 text-accent" /> Open Mission Board
+              </h2>
+              <Link href="/chores" className="text-primary text-sm font-bold flex items-center hover:underline">
+                View All <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {openMissions.length > 0 ? (
+                openMissions.slice(0, 3).map(chore => (
+                  <ChoreCard 
+                    key={chore.id} 
+                    chore={chore} 
+                    activeMemberName={activeMember?.name || ""}
+                    onClaim={handleClaim}
+                  />
+                ))
+              ) : (
+                <div className="py-12 text-center bg-white rounded-2xl border border-dashed border-border shadow-sm">
+                  <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Trophy className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-bold text-lg">Board Is Clear!</h3>
+                  <p className="text-muted-foreground text-sm max-w-xs mx-auto">All current missions have been assigned.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       </main>
     </div>
   );
