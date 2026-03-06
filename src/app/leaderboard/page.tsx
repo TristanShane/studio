@@ -1,11 +1,30 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Leaderboard } from "@/components/gamification/Leaderboard";
 import { Award, Star, Flame, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function LeaderboardPage() {
+  const [streakMembers, setStreakMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    const updateFromStorage = () => {
+      const savedMembers = localStorage.getItem('household_members');
+      if (savedMembers) {
+        const parsed = JSON.parse(savedMembers);
+        // Sort by streak descending and take top 5
+        const sorted = [...parsed].sort((a, b) => (b.streak || 0) - (a.streak || 0)).slice(0, 5);
+        setStreakMembers(sorted);
+      }
+    };
+
+    updateFromStorage();
+    window.addEventListener('storage', updateFromStorage);
+    return () => window.removeEventListener('storage', updateFromStorage);
+  }, []);
+
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20">
       <Navbar />
@@ -15,26 +34,30 @@ export default function LeaderboardPage() {
           <p className="text-muted-foreground">Battle of the best! Who will take home this week's trophy?</p>
         </section>
 
-        {/* Podium visualization would go here for extra flair */}
         <div className="bg-white p-8 rounded-3xl border border-border shadow-sm">
           <Leaderboard />
         </div>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-gradient-to-br from-primary to-accent p-6 rounded-2xl text-white">
-            <h3 className="text-xl font-headline font-bold mb-2 flex items-center gap-2">
+            <h3 className="text-xl font-headline font-bold mb-4 flex items-center gap-2">
               <Flame className="w-6 h-6 text-orange-400" />
               Longest Streaks
             </h3>
             <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b border-white/20">
-                <span className="font-medium">Alex Johnson</span>
-                <span className="font-bold">12 Days</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-white/20">
-                <span className="font-medium">Sam Smith</span>
-                <span className="font-bold">7 Days</span>
-              </div>
+              {streakMembers.length > 0 ? (
+                streakMembers.map((member, idx) => (
+                  <div key={member.id} className="flex justify-between items-center py-2 border-b border-white/20 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs opacity-70 font-bold w-4">{idx + 1}.</span>
+                      <span className="font-medium">{member.name}</span>
+                    </div>
+                    <span className="font-bold">{member.streak || 0} Days</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm opacity-80 italic">No streaks recorded yet. Start your first mission!</p>
+              )}
             </div>
           </div>
 
