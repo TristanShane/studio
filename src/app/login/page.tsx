@@ -8,9 +8,10 @@ import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Shield, Swords, Sparkles } from "lucide-react";
+import { Trophy, Shield, Swords, Sparkles, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -18,9 +19,11 @@ export default function LoginPage() {
   const router = useRouter();
   const [battleCode, setBattleCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
+    setAuthError(null);
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -42,7 +45,11 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "Login Failed", description: error.message });
+      if (error.code === 'auth/operation-not-allowed') {
+        setAuthError("Google Sign-In is not enabled in the Firebase Console. Please enable it in Authentication > Sign-in method.");
+      } else {
+        toast({ variant: "destructive", title: "Login Failed", description: error.message });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -87,6 +94,14 @@ export default function LoginPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {authError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Configuration Error</AlertTitle>
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase text-muted-foreground tracking-widest ml-1">Joining a team?</label>
             <div className="relative">
