@@ -32,7 +32,7 @@
   }
 
   /* Member Themes */
-  [data-theme='member-1'] { /* Alex - Classic */
+  [data-theme='member-1'] { /* Alex - Classic/Shield */
     --primary: 250 50% 50%;
     --accent: 220 70% 60%;
   }
@@ -45,6 +45,11 @@
     --primary: 142 70% 45%;
     --accent: 160 80% 40%;
     --background: 142 20% 96%;
+  }
+  [data-theme='member-pink'] { /* Heart Healer - Love/Pink */
+    --primary: 330 81% 60%;
+    --accent: 320 70% 50%;
+    --background: 330 40% 98%;
   }
 
   .dark {

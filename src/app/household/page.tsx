@@ -108,8 +108,11 @@ export default function HouseholdPage() {
       name: name,
       role: "Warrior",
       avatar: `https://picsum.photos/seed/${name.toLowerCase()}/100/100`,
-      type: theme === 'member-2' ? 'Fire Warrior' : theme === 'member-3' ? 'Nature Scout' : 'Shield Guardian',
-      theme: theme
+      type: theme === 'member-2' ? 'Fire Warrior' : theme === 'member-3' ? 'Nature Scout' : theme === 'member-pink' ? 'Heart Healer' : 'Shield Guardian',
+      theme: theme,
+      points: 0,
+      streak: 0,
+      achievements: []
     };
 
     const updatedMembers = [...members, newMember];
@@ -161,7 +164,7 @@ export default function HouseholdPage() {
                         <Button type="button" variant="outline" onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-2'} className="h-16 flex flex-col gap-1 border-2 border-orange-200 bg-orange-50 hover:bg-orange-100"><Zap className="w-4 h-4 text-orange-600" /><span className="text-[10px] font-bold">Fire</span></Button>
                         <Button type="button" variant="outline" onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-3'} className="h-16 flex flex-col gap-1 border-2 border-green-200 bg-green-50 hover:bg-green-100"><Leaf className="w-4 h-4 text-green-600" /><span className="text-[10px] font-bold">Nature</span></Button>
                         <Button type="button" variant="outline" onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-1'} className="h-16 flex flex-col gap-1 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100"><Shield className="w-4 h-4 text-blue-600" /><span className="text-[10px] font-bold">Shield</span></Button>
-                        <Button type="button" variant="outline" onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-1'} className="h-16 flex flex-col gap-1 border-2 border-pink-200 bg-pink-50 hover:bg-pink-100"><Heart className="w-4 h-4 text-pink-600" /><span className="text-[10px] font-bold">Love</span></Button>
+                        <Button type="button" variant="outline" onClick={() => (document.getElementById('warrior-path-input') as HTMLInputElement).value = 'member-pink'} className="h-16 flex flex-col gap-1 border-2 border-pink-200 bg-pink-50 hover:bg-pink-100"><Heart className="w-4 h-4 text-pink-600" /><span className="text-[10px] font-bold">Love</span></Button>
                       </div>
                     </div>
                   </div>

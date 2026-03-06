@@ -1,9 +1,8 @@
-
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, List, Trophy, Users, User, Bell, ChevronDown, UserCheck, Shield, Zap, Leaf, LogOut } from "lucide-react";
+import { Home, List, Trophy, Users, User, Bell, ChevronDown, UserCheck, Shield, Zap, Leaf, Heart, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,8 +27,6 @@ const navItems = [
 
 const DEFAULT_MEMBERS = [
   { id: "member-1", name: "Alex (Admin)", avatar: "https://picsum.photos/seed/alex/100/100", role: "admin", icon: Shield, theme: 'member-1' },
-  { id: "member-2", name: "Sam", avatar: "https://picsum.photos/seed/sam/100/100", role: "warrior", icon: Zap, theme: 'member-2' },
-  { id: "member-3", name: "Jordan", avatar: "https://picsum.photos/seed/jordan/100/100", role: "warrior", icon: Leaf, theme: 'member-3' },
 ];
 
 export function Navbar() {
@@ -92,6 +89,7 @@ export function Navbar() {
   const getMemberIcon = (member: any) => {
     if (member.theme === 'member-2') return Zap;
     if (member.theme === 'member-3') return Leaf;
+    if (member.theme === 'member-pink') return Heart;
     return Shield;
   };
 
