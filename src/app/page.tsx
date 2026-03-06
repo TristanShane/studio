@@ -18,20 +18,19 @@ const MOCK_STATS = [
 
 const INITIAL_CHORES: Chore[] = [
   { id: "1", title: "Wash Dishes", description: "Empty the dishwasher and fill with dirty dishes.", points: 30, dueDate: "Today", status: 'pending', frequency: 'daily' },
-  { id: "2", title: "Mop Floors", description: "Mop the kitchen and hallway floors.", points: 100, dueDate: "Every Saturday", status: 'pending', frequency: 'weekly' },
-  { id: "3", title: "Take Out Trash", description: "Empty all trash cans and take them to the curb.", points: 40, dueDate: "Wednesday Night", status: 'claimed', assignedTo: "Sam", frequency: 'weekly' },
+  { id: "2", title: "Mop Floors", description: "Mop the kitchen and hallway floors.", points: 100, dueDate: "Saturday", status: 'pending', frequency: 'weekly' },
+  { id: "3", title: "Take Out Trash", description: "Empty all trash cans and take them to the curb.", points: 40, dueDate: "Wednesday", status: 'claimed', assignedTo: "Sam", frequency: 'weekly' },
   { id: "4", title: "Laundry", description: "Wash, dry, and fold two loads of laundry.", points: 120, dueDate: "Tomorrow", status: 'claimed', assignedTo: "Jordan", frequency: 'weekly' },
-  { id: "5", title: "Water Plants", description: "Water all indoor plants and the garden.", points: 20, dueDate: "Daily", status: 'completed', assignedTo: "Alex", frequency: 'daily' },
+  { id: "5", title: "Water Plants", description: "Water all indoor plants and the garden.", points: 20, dueDate: "Daily", status: 'completed', assignedTo: "Alex (Admin)", frequency: 'daily' },
 ];
 
 export default function Dashboard() {
   const [chores, setChores] = useState<Chore[]>([]);
-  const [activeMemberName, setActiveMemberName] = useState("Alex Johnson");
+  const [activeMemberName, setActiveMemberName] = useState("Alex (Admin)");
   const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly" });
 
   useEffect(() => {
     const updateFromStorage = () => {
-      // Get chores
       const savedChores = localStorage.getItem('household_chores');
       if (savedChores) {
         setChores(JSON.parse(savedChores));
@@ -40,7 +39,6 @@ export default function Dashboard() {
         setChores(INITIAL_CHORES);
       }
 
-      // Get current active member
       const savedMembers = localStorage.getItem('household_members');
       const activeId = localStorage.getItem('activeMemberId');
       if (savedMembers && activeId) {
@@ -49,7 +47,6 @@ export default function Dashboard() {
         if (active) setActiveMemberName(active.name);
       }
 
-      // Get household prize
       const savedPrize = localStorage.getItem('household_prize');
       if (savedPrize) {
         setPrize(JSON.parse(savedPrize));
@@ -74,7 +71,6 @@ export default function Dashboard() {
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-        {/* Header section */}
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-headline font-bold text-foreground">Warrior HQ</h1>
@@ -89,14 +85,12 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Stats Grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {MOCK_STATS.map((stat, i) => (
             <StatCard key={i} {...stat} />
           ))}
         </section>
 
-        {/* Chores Section */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-headline font-bold">Your Active Missions</h2>
@@ -125,7 +119,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Recent Activity / Mini Leaderboard */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section className="bg-white p-6 rounded-2xl border border-border">
             <div className="flex items-center justify-between mb-4">

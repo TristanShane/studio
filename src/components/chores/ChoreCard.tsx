@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Clock, Shield, Star, AlertCircle, User } from "lucide-react";
+import { Check, Clock, Shield, Star, AlertCircle, User, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,12 +24,11 @@ interface ChoreCardProps {
   activeMemberName: string;
   onClaim?: (id: string) => void;
   onComplete?: (id: string) => void;
-  onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
+  onRevoke?: (id: string) => void;
   isAdmin?: boolean;
 }
 
-export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onApprove, onReject, isAdmin }: ChoreCardProps) {
+export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onRevoke, isAdmin }: ChoreCardProps) {
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleComplete = () => {
@@ -123,28 +122,19 @@ export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onAppr
           </div>
         )}
         {chore.status === 'completed' && isAdmin && (
-          <div className="grid grid-cols-2 w-full gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="text-destructive hover:bg-destructive/5"
-              onClick={() => onReject?.(chore.id)}
-            >
-              Reject
-            </Button>
-            <Button 
-              size="sm" 
-              className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => onApprove?.(chore.id)}
-            >
-              Approve
-            </Button>
-          </div>
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            className="w-full flex items-center justify-center gap-2"
+            onClick={() => onRevoke?.(chore.id)}
+          >
+            <RotateCcw className="w-4 h-4" /> Revoke Mission
+          </Button>
         )}
         {chore.status === 'completed' && !isAdmin && (
-          <Button variant="outline" className="w-full cursor-not-allowed opacity-70" size="sm" disabled>
-            Awaiting Guardian Approval
-          </Button>
+          <div className="w-full flex items-center justify-center gap-2 text-green-600 text-xs font-bold py-1">
+            <Check className="w-4 h-4" /> Victory Recorded
+          </div>
         )}
       </CardFooter>
     </Card>
