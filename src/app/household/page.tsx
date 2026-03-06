@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 import { 
   collection, 
   query, 
@@ -90,19 +92,33 @@ export default function HouseholdPage() {
   useEffect(() => {
     if (!user) return;
 
-    const q = query(collection(db, "households"), where("members", "array-contains", user.uid));
-    const unsubscribeHousehold = onSnapshot(q, (snapshot) => {
+    let unsubscribeRequests: (() => void) | null = null;
+
+    const hQuery = query(collection(db, "households"), where("members", "array-contains", user.uid));
+    const unsubscribeHousehold = onSnapshot(hQuery, (snapshot) => {
       if (!snapshot.empty) {
         const hDoc = snapshot.docs[0];
-        setHousehold({ id: hDoc.id, ...hDoc.data() });
+        const hData = { id: hDoc.id, ...hDoc.data() };
+        setHousehold(hData);
         
-        if (hDoc.data().ownerId === user.uid) {
+        if (hData.ownerId === user.uid) {
           const reqQuery = collection(db, "households", hDoc.id, "joinRequests");
-          onSnapshot(reqQuery, (reqSnapshot) => {
+          if (unsubscribeRequests) unsubscribeRequests();
+          unsubscribeRequests = onSnapshot(reqQuery, (reqSnapshot) => {
             setJoinRequests(reqSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+          }, async (err) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: `households/${hDoc.id}/joinRequests`,
+              operation: 'list'
+            }));
           });
         }
       }
+    }, async (err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'households',
+        operation: 'list'
+      }));
     });
 
     const syncState = () => {
@@ -124,6 +140,7 @@ export default function HouseholdPage() {
     window.addEventListener('storage', syncState);
     return () => {
       unsubscribeHousehold();
+      if (unsubscribeRequests) unsubscribeRequests();
       window.removeEventListener('storage', syncState);
     };
   }, [user, db]);
@@ -131,8 +148,6 @@ export default function HouseholdPage() {
   const isOwner = household?.ownerId === user?.uid;
   const activeMember = members.find(m => m.id === activeMemberId);
   
-  // CRITICAL: isAdmin is strictly tied to the active warrior's role.
-  // This prevents children from editing prizes even if the Guardian is logged in.
   const isAdmin = activeMember?.role === 'Admin' || activeMember?.role === 'Owner';
 
   const copyInviteCode = () => {
@@ -143,15 +158,26 @@ export default function HouseholdPage() {
 
   const handleApprove = async (request: any) => {
     if (!household || !isOwner) return;
-    try {
-      await updateDoc(doc(db, "households", household.id), {
-        members: arrayUnion(request.userId)
-      });
-      await deleteDoc(doc(db, "households", household.id, "joinRequests", request.userId));
-      toast({ title: "Warrior Approved!", description: `${request.userName} is now part of the base.` });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Approval Failed", description: e.message });
-    }
+    const hRef = doc(db, "households", household.id);
+    updateDoc(hRef, {
+      members: arrayUnion(request.userId)
+    }).catch(async (err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: hRef.path,
+        operation: 'update',
+        requestResourceData: { members: request.userId }
+      }));
+    });
+
+    const reqRef = doc(db, "households", household.id, "joinRequests", request.userId);
+    deleteDoc(reqRef).catch(async (err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: reqRef.path,
+        operation: 'delete'
+      }));
+    });
+    
+    toast({ title: "Warrior Approved!", description: `${request.userName} is now part of the base.` });
   };
 
   const handlePromoteToAdmin = (memberId: string) => {
@@ -168,16 +194,21 @@ export default function HouseholdPage() {
   const handleDeleteHousehold = async () => {
     if (!isOwner || !household) return;
     setIsDeleting(true);
-    try {
-      await deleteDoc(doc(db, "households", household.id));
-      localStorage.clear();
-      window.dispatchEvent(new Event('storage'));
-      toast({ title: "Base Decommissioned", description: "All data wiped." });
-      router.push("/login");
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Deletion Failed", description: e.message });
-      setIsDeleting(false);
-    }
+    const hRef = doc(db, "households", household.id);
+    deleteDoc(hRef)
+      .then(() => {
+        localStorage.clear();
+        window.dispatchEvent(new Event('storage'));
+        toast({ title: "Base Decommissioned", description: "All data wiped." });
+        router.push("/login");
+      })
+      .catch((err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: hRef.path,
+          operation: 'delete'
+        }));
+        setIsDeleting(false);
+      });
   };
 
   const handleRecruit = (e: React.FormEvent<HTMLFormElement>) => {

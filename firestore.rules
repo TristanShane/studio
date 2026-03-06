@@ -10,19 +10,19 @@ service cloud.firestore {
     }
 
     match /households/{householdId} {
-      allow get: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn(); // Simplified for prototype join flow
+      allow update: if isSignedIn(); 
     }
 
     match /households/{householdId}/joinRequests/{userId} {
       allow create: if isOwner(userId);
-      allow get: if isOwner(userId) || isSignedIn(); // Owners can see requests
+      allow get: if isOwner(userId) || isSignedIn(); 
       allow list: if isSignedIn(); 
       allow update, delete: if isSignedIn();
     }
 
-    // Default deny
+    // Default catch-all for signed in users
     match /{document=**} {
       allow read, write: if isSignedIn();
     }

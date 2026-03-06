@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useUser, useFirestore } from "@/firebase";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 import { useRouter } from "next/navigation";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
@@ -32,13 +34,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
 
-    const checkHousehold = async () => {
-      const q = query(collection(db, "households"), where("members", "array-contains", user.uid));
-      const snapshot = await getDocs(q);
-      
+    const q = query(collection(db, "households"), where("members", "array-contains", user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
         setHasHousehold(true);
-        const householdData = snapshot.docs[0].data();
         
         const savedActiveId = localStorage.getItem('activeMemberId');
         if (!savedActiveId) {
@@ -60,9 +59,12 @@ export default function Dashboard() {
       } else {
         setHasHousehold(false);
       }
-    };
-
-    checkHousehold();
+    }, async (err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'households',
+        operation: 'list'
+      }));
+    });
 
     const updateFromStorage = () => {
       const savedChores = localStorage.getItem('household_chores');
@@ -82,7 +84,10 @@ export default function Dashboard() {
 
     updateFromStorage();
     window.addEventListener('storage', updateFromStorage);
-    return () => window.removeEventListener('storage', updateFromStorage);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('storage', updateFromStorage);
+    };
   }, [user, db]);
 
   const addNotification = (message: string, type: AppNotification['type']) => {
@@ -102,16 +107,17 @@ export default function Dashboard() {
   const handleCreateHousehold = async () => {
     if (!user) return;
     setIsCreating(true);
-    try {
-      const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      await addDoc(collection(db, "households"), {
-        name: `${user.displayName || 'Warrior'}'s Base`,
-        ownerId: user.uid,
-        inviteCode,
-        members: [user.uid],
-        createdAt: serverTimestamp()
-      });
-
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const hRef = collection(db, "households");
+    
+    addDoc(hRef, {
+      name: `${user.displayName || 'Warrior'}'s Base`,
+      ownerId: user.uid,
+      inviteCode,
+      members: [user.uid],
+      createdAt: serverTimestamp()
+    })
+    .then(() => {
       const ownerProfile = {
         id: user.uid,
         name: user.displayName || "Guardian",
@@ -131,11 +137,17 @@ export default function Dashboard() {
       setActiveMember(ownerProfile);
       window.dispatchEvent(new Event('storage'));
       toast({ title: "Base Forged!", description: "Welcome to your new HQ, Guardian." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Construction Failed", description: e.message });
-    } finally {
+    })
+    .catch((err) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: hRef.path,
+        operation: 'create',
+        requestResourceData: { ownerId: user.uid, inviteCode }
+      }));
+    })
+    .finally(() => {
       setIsCreating(false);
-    }
+    });
   };
 
   const handleComplete = (id: string) => {
