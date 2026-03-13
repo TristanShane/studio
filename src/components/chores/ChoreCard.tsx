@@ -60,25 +60,26 @@ export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onRevo
       isAnimating && "celebrate-animation scale-105 shadow-xl border-accent",
       chore.status === 'overdue' && "border-destructive/30 grayscale-[0.5]"
     )}>
-      {isAdmin && (chore.status === 'pending' || chore.status === 'overdue') && (
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="absolute top-2 right-2 text-muted-foreground hover:text-destructive z-10 h-8 w-8"
-          onClick={() => onDelete?.(chore.id)}
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      )}
-      
       <CardHeader className="p-4 pb-2 space-y-2">
         <div className="flex justify-between items-start">
           <Badge variant="outline" className={cn("text-[10px] uppercase tracking-wider font-bold px-1.5 py-0", getStatusColor(chore.status))}>
             {chore.status}
           </Badge>
-          <div className="flex items-center gap-1 text-primary font-bold pr-8 md:pr-0">
-            <Star className="w-4 h-4 fill-primary" />
-            <span>{chore.points} XP</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 text-primary font-bold">
+              <Star className="w-4 h-4 fill-primary" />
+              <span>{chore.points} XP</span>
+            </div>
+            {isAdmin && (chore.status === 'pending' || chore.status === 'overdue') && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-muted-foreground hover:text-destructive h-7 w-7 -mr-2 -mt-1"
+                onClick={() => onDelete?.(chore.id)}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
         <h3 className="font-headline font-bold text-lg leading-tight">{chore.title}</h3>
