@@ -1,9 +1,9 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   History, 
@@ -11,12 +11,10 @@ import {
   Award, 
   Star, 
   Flame, 
-  Calendar, 
   Shield, 
   Zap, 
   Leaf, 
   Heart, 
-  ArrowRight,
   Sparkles,
   CheckCircle2
 } from "lucide-react";
@@ -65,7 +63,7 @@ export default function VictoryLogPage() {
       type: 'victory',
       title: v.title,
       description: `Completed the mission for ${v.points} XP`,
-      timestamp: new Date().toISOString(), // Mocking current time for historical chores as they don't have completedAt
+      timestamp: v.lastActionAt || new Date().toISOString(),
       icon: CheckCircle2,
       color: 'text-green-500',
       bg: 'bg-green-50'

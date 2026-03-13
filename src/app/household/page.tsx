@@ -13,20 +13,19 @@ import {
   Shield, 
   UserPlus, 
   Copy, 
-  LogOut, 
-  Settings, 
   Swords, 
   Zap, 
   Leaf, 
   Heart, 
   Trophy, 
-  Gift, 
+  Target,
   Check, 
   X, 
   Trash2, 
   UserCog,
-  Target,
-  Sparkles
+  Sparkles,
+  History,
+  Clock
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
@@ -137,8 +136,6 @@ export default function HouseholdPage() {
   }, [user, db]);
 
   const activeMember = members.find(m => m.id === activeMemberId);
-  
-  // CRITICAL SECURITY CHECK
   const isOwner = household?.ownerId === user?.uid && activeMember?.role === 'Owner';
   const isAdmin = activeMember?.role === 'Admin' || activeMember?.role === 'Owner';
 
@@ -226,6 +223,27 @@ export default function HouseholdPage() {
     localStorage.setItem('household_prize', JSON.stringify(prizeData));
     window.dispatchEvent(new Event('storage'));
     toast({ title: "Prize Updated!", description: "The battle goal has been refreshed." });
+  };
+
+  const simulateNewDay = () => {
+    if (!isOwner) return;
+    const savedChores = localStorage.getItem('household_chores');
+    if (!savedChores) return;
+    
+    const chores = JSON.parse(savedChores);
+    // Move all lastActionAt dates back by 25 hours to ensure reset logic triggers
+    const dayAgo = new Date(Date.now() - (25 * 60 * 60 * 1000)).toISOString();
+    
+    const updatedChores = chores.map((c: any) => {
+      if (c.lastActionAt) {
+        return { ...c, lastActionAt: dayAgo };
+      }
+      return c;
+    });
+
+    localStorage.setItem('household_chores', JSON.stringify(updatedChores));
+    window.dispatchEvent(new Event('storage'));
+    toast({ title: "Time Warp Complete!", description: "24 hours have passed in the Battle Station." });
   };
 
   return (
@@ -377,11 +395,17 @@ export default function HouseholdPage() {
 
             {isOwner && (
               <div className="pt-8 space-y-4">
-                <Button asChild variant="outline" className="w-full font-bold border-primary text-primary hover:bg-primary/5">
-                  <Link href="/thanks">
-                    <Sparkles className="w-4 h-4 mr-2 text-yellow-500" /> Support the Developer
-                  </Link>
-                </Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button asChild variant="outline" className="w-full font-bold border-primary text-primary hover:bg-primary/5">
+                    <Link href="/thanks">
+                      <Sparkles className="w-4 h-4 mr-2 text-yellow-500" /> Support the Developer
+                    </Link>
+                  </Button>
+                  
+                  <Button variant="outline" onClick={simulateNewDay} className="w-full font-bold border-orange-500 text-orange-600 hover:bg-orange-50">
+                    <Clock className="w-4 h-4 mr-2" /> Simulate New Day (Debug)
+                  </Button>
+                </div>
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
