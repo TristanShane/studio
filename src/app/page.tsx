@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -44,29 +45,33 @@ export default function Dashboard() {
         setIsPendingRequest(false);
         localStorage.removeItem('pending_join_request');
         
+        const hDoc = snapshot.docs[0];
+        const hData = hDoc.data();
+        const isActuallyOwner = hData.ownerId === user.uid;
+        
         const savedActiveId = localStorage.getItem('activeMemberId');
         if (!savedActiveId) {
-          const ownerProfile = {
+          const profile = {
             id: user.uid,
-            name: user.displayName || "Guardian",
-            role: "Owner",
+            name: user.displayName || (isActuallyOwner ? "Guardian" : "Warrior"),
+            role: isActuallyOwner ? "Owner" : "Warrior",
             avatar: user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`,
-            type: 'Shield Guardian',
+            type: isActuallyOwner ? 'Shield Guardian' : 'Warrior Recruit',
             theme: 'member-1',
             points: 0,
             streak: 0,
             lastCompletionDate: null
           };
           localStorage.setItem('activeMemberId', user.uid);
-          localStorage.setItem('household_members', JSON.stringify([ownerProfile]));
-          setActiveMember(ownerProfile);
+          localStorage.setItem('household_members', JSON.stringify([profile]));
+          setActiveMember(profile);
           window.dispatchEvent(new Event('storage'));
         }
       } else {
         setHasHousehold(false);
       }
     }, (err) => {
-      // Handle permission error via global listener
+      console.error("Dashboard Snapshot Error:", err);
     });
 
     const updateFromStorage = () => {
@@ -172,7 +177,6 @@ export default function Dashboard() {
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
     saveChores(updated);
 
-    // Update member stats (streak logic: once per day)
     const savedMembers = localStorage.getItem('household_members');
     if (savedMembers) {
       const members = JSON.parse(savedMembers);
@@ -193,7 +197,6 @@ export default function Dashboard() {
       localStorage.setItem('household_members', JSON.stringify(updatedMembers));
     }
 
-    // Update household prize progress
     const savedPrize = localStorage.getItem('household_prize');
     if (savedPrize) {
       const p = JSON.parse(savedPrize);
@@ -297,7 +300,6 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Prize Section */}
         <section>
           <Card className={`border-2 overflow-hidden transition-all ${isPrizeUnlocked ? 'border-yellow-400 bg-yellow-50 shadow-yellow-100 shadow-xl' : 'border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5'}`}>
             <CardHeader className="pb-2">
@@ -336,7 +338,6 @@ export default function Dashboard() {
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Active Missions */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-headline font-bold flex items-center gap-2">
@@ -365,7 +366,6 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* Open Missions */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-headline font-bold flex items-center gap-2">

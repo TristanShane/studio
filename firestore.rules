@@ -12,19 +12,21 @@ service cloud.firestore {
     match /households/{householdId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn(); 
+      // Only the owner can update household settings or delete the base
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid; 
     }
 
     match /households/{householdId}/joinRequests/{userId} {
+      // User can create their own request
       allow create: if isOwner(userId);
-      allow get: if isOwner(userId) || isSignedIn(); 
-      allow list: if isSignedIn(); 
-      allow update, delete: if isSignedIn();
+      // Owner of household or the user themselves can read/manage the request
+      allow get, delete: if isSignedIn() && (isOwner(userId) || get(/databases/$(database)/documents/households/$(householdId)).data.ownerId == request.auth.uid);
+      allow list, update: if isSignedIn() && get(/databases/$(database)/documents/households/$(householdId)).data.ownerId == request.auth.uid;
     }
 
-    // Default catch-all for signed in users
+    // Default: no access to anything else
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if false;
     }
   }
 }
