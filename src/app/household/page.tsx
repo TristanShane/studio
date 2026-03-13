@@ -25,19 +25,16 @@ import {
   X, 
   Trash2, 
   UserCog,
-  Target
+  Target,
+  Sparkles
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 import { 
   collection, 
   query, 
   where, 
-  getDocs, 
   doc, 
-  setDoc, 
   updateDoc, 
   arrayUnion, 
   onSnapshot, 
@@ -65,6 +62,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const PRE_POPULATED_PRIZES = [
   "Pizza Night",
@@ -140,8 +138,7 @@ export default function HouseholdPage() {
 
   const activeMember = members.find(m => m.id === activeMemberId);
   
-  // CRITICAL: isOwner requires BOTH Firebase Auth UID match AND the Active Profile being the Owner role.
-  // This prevents non-owner profiles on a shared device from decommissioning.
+  // CRITICAL SECURITY CHECK
   const isOwner = household?.ownerId === user?.uid && activeMember?.role === 'Owner';
   const isAdmin = activeMember?.role === 'Admin' || activeMember?.role === 'Owner';
 
@@ -379,7 +376,13 @@ export default function HouseholdPage() {
             </Card>
 
             {isOwner && (
-              <div className="pt-8">
+              <div className="pt-8 space-y-4">
+                <Button asChild variant="outline" className="w-full font-bold border-primary text-primary hover:bg-primary/5">
+                  <Link href="/thanks">
+                    <Sparkles className="w-4 h-4 mr-2 text-yellow-500" /> Support the Developer
+                  </Link>
+                </Button>
+
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" className="w-full font-bold shadow-lg shadow-destructive/20"><Trash2 className="w-4 h-4 mr-2" /> Decommission Household Base</Button>
