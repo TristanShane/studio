@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -77,16 +78,28 @@ export default function ChoresPage() {
     window.dispatchEvent(new Event('storage'));
   };
 
-  const updateMemberStats = (memberId: string, pointDelta: number, streakAction: 'increment' | 'reset' | 'none') => {
+  const updateMemberStats = (memberId: string, pointDelta: number, isRevoke: boolean = false) => {
     const savedMembers = localStorage.getItem('household_members');
     if (!savedMembers) return;
     
     const members = JSON.parse(savedMembers);
+    const today = new Date().toISOString().split('T')[0];
+
     const updatedMembers = members.map((m: any) => {
       if (m.id === memberId) {
         let newStreak = m.streak || 0;
-        if (streakAction === 'increment') newStreak += 1;
-        if (streakAction === 'reset') newStreak = 0;
+        let lastDate = m.lastCompletionDate;
+
+        if (!isRevoke) {
+          // Increment streak only once per day
+          if (m.lastCompletionDate !== today) {
+            newStreak += 1;
+            lastDate = today;
+          }
+        } else {
+          // Revoke resets streak logic
+          newStreak = Math.max(0, newStreak - 1);
+        }
         
         const newPoints = (m.points || 0) + pointDelta;
         
@@ -96,13 +109,23 @@ export default function ChoresPage() {
           toast({ title: "Achievement Unlocked!", description: `${m.name} earned 'XP Titan'!` });
         }
 
-        return { ...m, points: newPoints, streak: newStreak, achievements };
+        return { ...m, points: newPoints, streak: newStreak, achievements, lastCompletionDate: lastDate };
       }
       return m;
     });
     
     localStorage.setItem('household_members', JSON.stringify(updatedMembers));
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const updatePrizeXP = (delta: number) => {
+    const savedPrize = localStorage.getItem('household_prize');
+    if (savedPrize) {
+      const p = JSON.parse(savedPrize);
+      const updatedPrize = { ...p, currentXP: Math.max(0, (p.currentXP || 0) + delta) };
+      localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
+      window.dispatchEvent(new Event('storage'));
+    }
   };
 
   const handleClaim = (id: string) => {
@@ -121,7 +144,8 @@ export default function ChoresPage() {
 
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
     saveChores(updated);
-    updateMemberStats(activeMemberId, chore.points, 'increment');
+    updateMemberStats(activeMemberId, chore.points);
+    updatePrizeXP(chore.points);
     addNotification(`${activeMemberName} completed the mission: ${chore.title}! (+${chore.points} XP)`, 'completion');
     toast({ title: "Victory Recorded!", description: `+${chore.points} XP earned!` });
   };
@@ -135,9 +159,10 @@ export default function ChoresPage() {
     );
     saveChores(updated);
     if (chore.status === 'completed' && chore.assignedToId) {
-      updateMemberStats(chore.assignedToId, -chore.points, 'reset');
+      updateMemberStats(chore.assignedToId, -chore.points, true);
+      updatePrizeXP(-chore.points);
     }
-    toast({ variant: "destructive", title: "Mission Revoked", description: "The chore has been returned to the board and streak was lost." });
+    toast({ variant: "destructive", title: "Mission Revoked", description: "The chore has been returned to the board and progress was lost." });
   };
 
   const saveChores = (updated: Chore[]) => {

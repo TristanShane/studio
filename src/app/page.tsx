@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,12 +9,11 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useUser, useFirestore } from "@/firebase";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
 import { useRouter } from "next/navigation";
 import { collection, query, where, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
@@ -23,7 +21,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [chores, setChores] = useState<Chore[]>([]);
   const [activeMember, setActiveMember] = useState<any>(null);
-  const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly" });
+  const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly", xpGoal: 1000, currentXP: 0 });
   const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isPendingRequest, setIsPendingRequest] = useState(false);
@@ -56,7 +54,8 @@ export default function Dashboard() {
             type: 'Shield Guardian',
             theme: 'member-1',
             points: 0,
-            streak: 0
+            streak: 0,
+            lastCompletionDate: null
           };
           localStorage.setItem('activeMemberId', user.uid);
           localStorage.setItem('household_members', JSON.stringify([ownerProfile]));
@@ -66,8 +65,8 @@ export default function Dashboard() {
       } else {
         setHasHousehold(false);
       }
-    }, async (err) => {
-      // Handle permission error gracefully
+    }, (err) => {
+      // Handle permission error via global listener
     });
 
     const updateFromStorage = () => {
@@ -130,12 +129,14 @@ export default function Dashboard() {
         type: 'Shield Guardian',
         theme: 'member-1',
         points: 0,
-        streak: 0
+        streak: 0,
+        lastCompletionDate: null
       };
       localStorage.setItem('activeMemberId', user.uid);
       localStorage.setItem('household_members', JSON.stringify([ownerProfile]));
       localStorage.setItem('household_chores', JSON.stringify([]));
       localStorage.setItem('household_notifications', JSON.stringify([]));
+      localStorage.setItem('household_prize', JSON.stringify({ title: "Pizza Night", frequency: "Weekly", xpGoal: 1000, currentXP: 0 }));
       
       setHasHousehold(true);
       setActiveMember(ownerProfile);
@@ -171,20 +172,34 @@ export default function Dashboard() {
     const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
     saveChores(updated);
 
+    // Update member stats (streak logic: once per day)
     const savedMembers = localStorage.getItem('household_members');
     if (savedMembers) {
       const members = JSON.parse(savedMembers);
+      const today = new Date().toISOString().split('T')[0];
+      
       const updatedMembers = members.map((m: any) => {
         if (m.id === activeMember.id) {
+          const hasAlreadyCompletedToday = m.lastCompletionDate === today;
           return {
             ...m,
             points: (m.points || 0) + chore.points,
-            streak: (m.streak || 0) + 1
+            streak: hasAlreadyCompletedToday ? m.streak : (m.streak || 0) + 1,
+            lastCompletionDate: today
           };
         }
         return m;
       });
       localStorage.setItem('household_members', JSON.stringify(updatedMembers));
+    }
+
+    // Update household prize progress
+    const savedPrize = localStorage.getItem('household_prize');
+    if (savedPrize) {
+      const p = JSON.parse(savedPrize);
+      const updatedPrize = { ...p, currentXP: (p.currentXP || 0) + chore.points };
+      localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
+      setPrize(updatedPrize);
     }
 
     addNotification(`${activeMember.name} completed the mission: ${chore.title}! (+${chore.points} XP)`, 'completion');
@@ -261,6 +276,9 @@ export default function Dashboard() {
     { label: "Victories Today", value: choresTodayCount, icon: Trophy, color: "bg-accent" },
   ];
 
+  const prizeProgress = Math.min((prize.currentXP / prize.xpGoal) * 100, 100);
+  const isPrizeUnlocked = prize.currentXP >= prize.xpGoal;
+
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20 transition-colors duration-500">
       <Navbar />
@@ -281,20 +299,31 @@ export default function Dashboard() {
 
         {/* Prize Section */}
         <section>
-          <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5 overflow-hidden">
+          <Card className={`border-2 overflow-hidden transition-all ${isPrizeUnlocked ? 'border-yellow-400 bg-yellow-50 shadow-yellow-100 shadow-xl' : 'border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5'}`}>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-xl font-headline">
-                <Gift className="w-6 h-6 text-primary" />
-                Battle Reward: <span className="text-primary">{prize.title}</span>
-              </CardTitle>
-              <CardDescription>
-                <Badge variant="outline" className="bg-white/50">{prize.frequency} Reward</Badge>
+              <div className="flex justify-between items-start">
+                <CardTitle className="flex items-center gap-2 text-xl font-headline">
+                  <Gift className={`w-6 h-6 ${isPrizeUnlocked ? 'text-yellow-600' : 'text-primary'}`} />
+                  Battle Reward: <span className={isPrizeUnlocked ? 'text-yellow-700' : 'text-primary'}>{prize.title}</span>
+                </CardTitle>
+                <Badge variant={isPrizeUnlocked ? 'default' : 'outline'} className={isPrizeUnlocked ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-white/50'}>
+                  {isPrizeUnlocked ? 'UNLOCKED' : `${prize.frequency} Quest`}
+                </Badge>
+              </div>
+              <CardDescription className="flex justify-between text-xs font-bold uppercase mt-1">
+                <span>Household Progress</span>
+                <span>{prize.currentXP.toLocaleString()} / {prize.xpGoal.toLocaleString()} XP</span>
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <Progress value={prizeProgress} className={`h-3 ${isPrizeUnlocked ? 'bg-yellow-200 [&>div]:bg-yellow-500' : ''}`} />
               <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-accent" />
-                Battle hard to earn this reward for the household!
+                {isPrizeUnlocked ? (
+                  <Sparkles className="w-4 h-4 text-yellow-600 animate-pulse" />
+                ) : (
+                  <Clock className="w-4 h-4 text-accent" />
+                )}
+                {isPrizeUnlocked ? 'VICTORY! The reward has been earned by the household!' : 'Complete missions to earn this reward for the family!'}
               </p>
             </CardContent>
           </Card>

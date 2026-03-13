@@ -24,7 +24,8 @@ import {
   Check, 
   X, 
   Trash2, 
-  UserCog 
+  UserCog,
+  Target
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useUser, useFirestore } from "@/firebase";
@@ -84,6 +85,8 @@ export default function HouseholdPage() {
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
   const [prizeTitle, setPrizeTitle] = useState("Pizza Night");
   const [prizeFrequency, setPrizeFrequency] = useState("Weekly");
+  const [xpGoal, setXpGoal] = useState(1000);
+  const [currentXP, setCurrentXP] = useState(0);
   const [isAddWarriorOpen, setIsAddWarriorOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
@@ -100,14 +103,11 @@ export default function HouseholdPage() {
         const hData = { id: hDoc.id, ...hDoc.data() };
         setHousehold(hData);
         
-        // Only owners can list join requests
         if (hData.ownerId === user.uid) {
           const reqQuery = collection(db, "households", hDoc.id, "joinRequests");
           if (unsubscribeRequests) unsubscribeRequests();
           unsubscribeRequests = onSnapshot(reqQuery, (reqSnapshot) => {
             setJoinRequests(reqSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-          }, async (err) => {
-            console.error("Request access error", err);
           });
         }
       }
@@ -118,11 +118,14 @@ export default function HouseholdPage() {
       if (savedMembers) setMembers(JSON.parse(savedMembers));
       const aid = localStorage.getItem('activeMemberId');
       setActiveMemberId(aid);
+      
       const savedPrize = localStorage.getItem('household_prize');
       if (savedPrize) {
         const parsed = JSON.parse(savedPrize);
         setPrizeTitle(parsed.title);
         setPrizeFrequency(parsed.frequency);
+        setXpGoal(parsed.xpGoal || 1000);
+        setCurrentXP(parsed.currentXP || 0);
       }
     };
 
@@ -196,7 +199,8 @@ export default function HouseholdPage() {
       theme: theme,
       points: 0,
       streak: 0,
-      achievements: []
+      achievements: [],
+      lastCompletionDate: null
     };
 
     const updatedMembers = [...members, newMember];
@@ -209,7 +213,12 @@ export default function HouseholdPage() {
 
   const handleUpdatePrize = () => {
     if (!isAdmin) return;
-    const prizeData = { title: prizeTitle, frequency: prizeFrequency };
+    const prizeData = { 
+      title: prizeTitle, 
+      frequency: prizeFrequency, 
+      xpGoal: Number(xpGoal), 
+      currentXP: currentXP 
+    };
     localStorage.setItem('household_prize', JSON.stringify(prizeData));
     window.dispatchEvent(new Event('storage'));
     toast({ title: "Prize Updated!", description: "The battle goal has been refreshed." });
@@ -328,26 +337,37 @@ export default function HouseholdPage() {
               <CardContent className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="font-bold">Prize Frequency</Label>
-                    <Select value={prizeFrequency} onValueChange={setPrizeFrequency} disabled={!isAdmin}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="Daily">Daily Reward</SelectItem><SelectItem value="Weekly">Weekly Grand Prize</SelectItem><SelectItem value="Monthly">Monthly Mega Reward</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
                     <Label className="font-bold">Reward Type</Label>
                     <Select value={prizeTitle} onValueChange={setPrizeTitle} disabled={!isAdmin}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{PRE_POPULATED_PRIZES.map(p => (<SelectItem key={p} value={p}>{p}</SelectItem>))}</SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label className="font-bold">Cycle</Label>
+                    <Select value={prizeFrequency} onValueChange={setPrizeFrequency} disabled={!isAdmin}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="Daily">Daily Reward</SelectItem><SelectItem value="Weekly">Weekly Grand Prize</SelectItem><SelectItem value="Monthly">Monthly Mega Reward</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-bold flex items-center gap-2"><Target className="w-3 h-3" /> XP Goal to Unlock</Label>
+                    <Input 
+                      type="number" 
+                      value={xpGoal} 
+                      onChange={(e) => setXpGoal(Number(e.target.value))} 
+                      disabled={!isAdmin}
+                      placeholder="e.g. 1000"
+                    />
+                    <p className="text-[10px] text-muted-foreground italic">Household currently at {currentXP} XP / {xpGoal} XP</p>
+                  </div>
                 </div>
                 {!isAdmin && (
                   <p className="text-[10px] text-muted-foreground italic text-center p-2 bg-muted/20 rounded-lg">
-                    Current active warrior ({activeMember?.name}) is not an Admin. Only Guardians or Admins can forge new prizes.
+                    Active warrior ({activeMember?.name}) is a Warrior. Only Guardians or Admins can forge new prizes.
                   </p>
                 )}
-                <Button onClick={handleUpdatePrize} disabled={!isAdmin} className="w-full bg-accent hover:bg-accent/90">Update Prize</Button>
+                <Button onClick={handleUpdatePrize} disabled={!isAdmin} className="w-full bg-accent hover:bg-accent/90 font-bold">Update Prize Quest</Button>
               </CardContent>
             </Card>
 
@@ -355,12 +375,12 @@ export default function HouseholdPage() {
               <div className="pt-8">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" className="w-full font-bold"><Trash2 className="w-4 h-4 mr-2" /> Decommission Household Base</Button>
+                    <Button variant="destructive" className="w-full font-bold shadow-lg shadow-destructive/20"><Trash2 className="w-4 h-4 mr-2" /> Decommission Household Base</Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Total Data Wipe Requested</AlertDialogTitle>
-                      <AlertDialogDescription>All warrior rosters, achievements, XP, and history will be permanently deleted.</AlertDialogDescription>
+                      <AlertDialogDescription>All warrior rosters, achievements, XP, and history will be permanently deleted. This action is final and can only be performed by the Household Guardian.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Keep Base</AlertDialogCancel>
