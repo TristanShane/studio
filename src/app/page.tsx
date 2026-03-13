@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Navbar, AppNotification } from "@/components/layout/Navbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
@@ -26,6 +26,30 @@ export default function Dashboard() {
   const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isPendingRequest, setIsPendingRequest] = useState(false);
+
+  const updateFromStorage = useCallback(() => {
+    const savedChores = localStorage.getItem('household_chores');
+    const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
+    
+    const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
+    if (hasChanges) {
+      localStorage.setItem('household_chores', JSON.stringify(updatedChores));
+      setChores(updatedChores);
+    } else {
+      setChores(parsedChores);
+    }
+
+    const savedMembers = localStorage.getItem('household_members');
+    const activeId = localStorage.getItem('activeMemberId');
+    if (savedMembers && activeId) {
+      const members = JSON.parse(savedMembers);
+      const active = members.find((m: any) => m.id === activeId);
+      if (active) setActiveMember(active);
+    }
+
+    const savedPrize = localStorage.getItem('household_prize');
+    if (savedPrize) setPrize(JSON.parse(savedPrize));
+  }, []);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -69,53 +93,27 @@ export default function Dashboard() {
           localStorage.setItem('activeMemberId', user.uid);
           localStorage.setItem('household_members', JSON.stringify([profile]));
           setActiveMember(profile);
+          updateFromStorage();
           window.dispatchEvent(new Event('storage'));
         } else {
-          const active = members.find((m: any) => m.id === savedActiveId);
-          if (active) setActiveMember(active);
+          updateFromStorage();
         }
       } else {
         setHasHousehold(false);
       }
     });
 
-    const updateFromStorage = () => {
-      const savedChores = localStorage.getItem('household_chores');
-      const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
-      
-      const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
-      if (hasChanges) {
-        localStorage.setItem('household_chores', JSON.stringify(updatedChores));
-        setChores(updatedChores);
-      } else {
-        setChores(parsedChores);
-      }
-
-      const savedMembers = localStorage.getItem('household_members');
-      const activeId = localStorage.getItem('activeMemberId');
-      if (savedMembers && activeId) {
-        const members = JSON.parse(savedMembers);
-        const active = members.find((m: any) => m.id === activeId);
-        if (active) setActiveMember(active);
-      }
-
-      const savedPrize = localStorage.getItem('household_prize');
-      if (savedPrize) setPrize(JSON.parse(savedPrize));
-    };
-
-    updateFromStorage();
     window.addEventListener('storage', updateFromStorage);
     return () => {
       unsubscribe();
       window.removeEventListener('storage', updateFromStorage);
     };
-  }, [user, db]);
+  }, [user, db, updateFromStorage]);
 
   const syncAndResetRecurringChores = (currentChores: Chore[]) => {
     const now = new Date();
     let hasChanges = false;
 
-    // 1. Reset Recurring Missions
     const updated = currentChores.map(chore => {
       if (chore.status === 'pending') return chore;
       if (!chore.lastActionAt) return chore;
@@ -134,7 +132,6 @@ export default function Dashboard() {
       return chore;
     });
 
-    // 2. Reset Prize Cycle & Member Points
     const savedPrize = localStorage.getItem('household_prize');
     if (savedPrize) {
       const p = JSON.parse(savedPrize);
@@ -146,19 +143,15 @@ export default function Dashboard() {
       if (p.frequency === 'Monthly') prizeCycleReset = !isSameMonth(now, lastReset);
 
       if (prizeCycleReset) {
-        // Reset Prize
         const updatedPrize = { ...p, currentXP: 0, lastResetAt: now.toISOString() };
         localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
-        setPrize(updatedPrize);
-
-        // Reset ALL Member Points for the new battle
+        
         const savedMembers = localStorage.getItem('household_members');
         if (savedMembers) {
           const members = JSON.parse(savedMembers);
           const resetMembers = members.map((m: any) => ({ ...m, points: 0 }));
           localStorage.setItem('household_members', JSON.stringify(resetMembers));
         }
-        
         hasChanges = true;
       }
     }
@@ -229,6 +222,7 @@ export default function Dashboard() {
       
       setHasHousehold(true);
       setActiveMember(ownerProfile);
+      updateFromStorage();
       window.dispatchEvent(new Event('storage'));
       toast({ title: "Base Forged!", description: "Welcome to your new HQ, Guardian." });
     })
@@ -250,6 +244,7 @@ export default function Dashboard() {
     setChores(updated);
     localStorage.setItem('household_chores', JSON.stringify(updated));
     addNotification(`${activeMember.name} has joined the battle for: ${chore.title}`, 'claim');
+    updateFromStorage();
     window.dispatchEvent(new Event('storage'));
     toast({ title: "Mission Claimed!", description: `You've joined the battle for this mission.` });
   };
@@ -285,6 +280,9 @@ export default function Dashboard() {
         return m;
       });
       localStorage.setItem('household_members', JSON.stringify(updatedMembers));
+      
+      const newActive = updatedMembers.find((m: any) => m.id === activeMember.id);
+      if (newActive) setActiveMember(newActive);
     }
 
     const savedPrize = localStorage.getItem('household_prize');
@@ -408,7 +406,14 @@ export default function Dashboard() {
           <section className="space-y-4">
             <h2 className="text-xl font-headline font-bold flex items-center gap-2"><Swords className="w-5 h-5 text-primary" /> Your Active Missions</h2>
             <div className="grid gap-4">
-              {activeMissions.length > 0 ? activeMissions.map(chore => <ChoreCard key={chore.id} chore={chore} activeMemberName={activeMember?.name || ""} onComplete={handleComplete} />) : (
+              {activeMissions.length > 0 ? activeMissions.map(chore => (
+                <ChoreCard 
+                  key={chore.id} 
+                  chore={chore} 
+                  activeMemberName={activeMember?.name || ""} 
+                  onComplete={handleComplete} 
+                />
+              )) : (
                 <div className="py-12 text-center bg-white rounded-2xl border border-dashed border-border">
                   <Target className="w-6 h-6 text-muted-foreground mx-auto mb-3" />
                   <p className="text-muted-foreground text-sm">No missions claimed. Visit the board!</p>
@@ -423,7 +428,14 @@ export default function Dashboard() {
               <Link href="/chores" className="text-primary text-sm font-bold flex items-center hover:underline">View All <ChevronRight className="w-4 h-4" /></Link>
             </div>
             <div className="grid gap-4">
-              {openMissions.slice(0, 3).map(chore => <ChoreCard key={chore.id} chore={chore} activeMemberName={activeMember?.name || ""} onClaim={handleClaim} />)}
+              {openMissions.slice(0, 3).map(chore => (
+                <ChoreCard 
+                  key={chore.id} 
+                  chore={chore} 
+                  activeMemberName={activeMember?.name || ""} 
+                  onClaim={handleClaim} 
+                />
+              ))}
             </div>
           </section>
         </div>

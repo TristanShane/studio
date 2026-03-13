@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Navbar, AppNotification } from "@/components/layout/Navbar";
 import { ChoreCard, Chore } from "@/components/chores/ChoreCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,36 +41,36 @@ export default function ChoresPage() {
   const [isNewChoreOpen, setIsNewChoreOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
+  const updateFromStorage = useCallback(() => {
+    const savedChores = localStorage.getItem('household_chores');
+    const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
+    
+    const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
+    if (hasChanges) {
+      localStorage.setItem('household_chores', JSON.stringify(updatedChores));
+      setChores(updatedChores);
+    } else {
+      setChores(parsedChores);
+    }
+
+    const savedMembers = localStorage.getItem('household_members');
+    const activeId = localStorage.getItem('activeMemberId');
+    if (savedMembers && activeId) {
+      const members = JSON.parse(savedMembers);
+      const active = members.find((m: any) => m.id === activeId);
+      if (active) {
+        setActiveMemberId(active.id);
+        setActiveMemberName(active.name);
+        setIsAdmin(active.role === 'Admin' || active.role === 'Owner');
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    const updateFromStorage = () => {
-      const savedChores = localStorage.getItem('household_chores');
-      const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
-      
-      const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
-      if (hasChanges) {
-        localStorage.setItem('household_chores', JSON.stringify(updatedChores));
-        setChores(updatedChores);
-      } else {
-        setChores(parsedChores);
-      }
-
-      const savedMembers = localStorage.getItem('household_members');
-      const activeId = localStorage.getItem('activeMemberId');
-      if (savedMembers && activeId) {
-        const members = JSON.parse(savedMembers);
-        const active = members.find((m: any) => m.id === activeId);
-        if (active) {
-          setActiveMemberId(active.id);
-          setActiveMemberName(active.name);
-          setIsAdmin(active.role === 'Admin' || active.role === 'Owner');
-        }
-      }
-    };
-
     updateFromStorage();
     window.addEventListener('storage', updateFromStorage);
     return () => window.removeEventListener('storage', updateFromStorage);
-  }, []);
+  }, [updateFromStorage]);
 
   const syncAndResetRecurringChores = (currentChores: Chore[]) => {
     const now = new Date();
@@ -177,6 +177,7 @@ export default function ChoresPage() {
     });
     
     localStorage.setItem('household_members', JSON.stringify(updatedMembers));
+    updateFromStorage();
     window.dispatchEvent(new Event('storage'));
   };
 
@@ -186,6 +187,7 @@ export default function ChoresPage() {
       const p = JSON.parse(savedPrize);
       const updatedPrize = { ...p, currentXP: Math.max(0, (p.currentXP || 0) + delta) };
       localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
+      updateFromStorage();
       window.dispatchEvent(new Event('storage'));
     }
   };
