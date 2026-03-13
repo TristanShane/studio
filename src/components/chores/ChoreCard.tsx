@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Clock, Shield, Star, AlertCircle, User, RotateCcw } from "lucide-react";
+import { Check, Clock, Shield, Star, AlertCircle, User, RotateCcw, Trash2 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ export interface Chore {
   assignedTo?: string;
   assignedToId?: string;
   frequency: 'daily' | 'weekly' | 'monthly' | 'one-time';
+  lastActionAt?: string; // ISO timestamp of last claim/completion
 }
 
 interface ChoreCardProps {
@@ -26,10 +27,11 @@ interface ChoreCardProps {
   onClaim?: (id: string) => void;
   onComplete?: (id: string) => void;
   onRevoke?: (id: string) => void;
+  onDelete?: (id: string) => void;
   isAdmin?: boolean;
 }
 
-export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onRevoke, isAdmin }: ChoreCardProps) {
+export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onRevoke, onDelete, isAdmin }: ChoreCardProps) {
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleComplete = () => {
@@ -54,16 +56,27 @@ export function ChoreCard({ chore, activeMemberName, onClaim, onComplete, onRevo
 
   return (
     <Card className={cn(
-      "overflow-hidden transition-all hover:shadow-md border-2",
+      "overflow-hidden transition-all hover:shadow-md border-2 relative",
       isAnimating && "celebrate-animation scale-105 shadow-xl border-accent",
       chore.status === 'overdue' && "border-destructive/30 grayscale-[0.5]"
     )}>
+      {isAdmin && (chore.status === 'pending' || chore.status === 'overdue') && (
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="absolute top-2 right-2 text-muted-foreground hover:text-destructive z-10 h-8 w-8"
+          onClick={() => onDelete?.(chore.id)}
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      )}
+      
       <CardHeader className="p-4 pb-2 space-y-2">
         <div className="flex justify-between items-start">
           <Badge variant="outline" className={cn("text-[10px] uppercase tracking-wider font-bold px-1.5 py-0", getStatusColor(chore.status))}>
             {chore.status}
           </Badge>
-          <div className="flex items-center gap-1 text-primary font-bold">
+          <div className="flex items-center gap-1 text-primary font-bold pr-8 md:pr-0">
             <Star className="w-4 h-4 fill-primary" />
             <span>{chore.points} XP</span>
           </div>

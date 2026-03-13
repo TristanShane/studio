@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { isSameDay, isSameWeek, isSameMonth } from "date-fns";
 import { 
   Dialog, 
   DialogContent, 
@@ -44,7 +45,16 @@ export default function ChoresPage() {
   useEffect(() => {
     const updateFromStorage = () => {
       const savedChores = localStorage.getItem('household_chores');
-      if (savedChores) setChores(JSON.parse(savedChores));
+      const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
+      
+      // Run recurring reset logic
+      const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
+      if (hasChanges) {
+        localStorage.setItem('household_chores', JSON.stringify(updatedChores));
+        setChores(updatedChores);
+      } else {
+        setChores(parsedChores);
+      }
 
       const savedMembers = localStorage.getItem('household_members');
       const activeId = localStorage.getItem('activeMemberId');
@@ -54,7 +64,8 @@ export default function ChoresPage() {
         if (active) {
           setActiveMemberId(active.id);
           setActiveMemberName(active.name);
-          setIsAdmin(active.role?.toLowerCase() === 'admin' || active.role?.toLowerCase() === 'owner');
+          // Security: Role-based admin check
+          setIsAdmin(active.role === 'Admin' || active.role === 'Owner');
         }
       }
     };
@@ -63,6 +74,42 @@ export default function ChoresPage() {
     window.addEventListener('storage', updateFromStorage);
     return () => window.removeEventListener('storage', updateFromStorage);
   }, []);
+
+  const syncAndResetRecurringChores = (currentChores: Chore[]) => {
+    const now = new Date();
+    let hasChanges = false;
+
+    const updated = currentChores.map(chore => {
+      if (chore.status === 'pending') return chore;
+      if (!chore.lastActionAt) return chore;
+
+      const lastDate = new Date(chore.lastActionAt);
+      let shouldReset = false;
+
+      if (chore.frequency === 'daily') {
+        shouldReset = !isSameDay(now, lastDate);
+      } else if (chore.frequency === 'weekly') {
+        // Different week starting Monday
+        shouldReset = !isSameWeek(now, lastDate, { weekStartsOn: 1 });
+      } else if (chore.frequency === 'monthly') {
+        shouldReset = !isSameMonth(now, lastDate);
+      }
+
+      if (shouldReset) {
+        hasChanges = true;
+        return {
+          ...chore,
+          status: 'pending' as const,
+          assignedTo: undefined,
+          assignedToId: undefined,
+          lastActionAt: undefined
+        };
+      }
+      return chore;
+    });
+
+    return { updatedChores: updated, hasChanges };
+  };
 
   const addNotification = (message: string, type: AppNotification['type']) => {
     const saved = localStorage.getItem('household_notifications');
@@ -91,25 +138,16 @@ export default function ChoresPage() {
         let lastDate = m.lastCompletionDate;
 
         if (!isRevoke) {
-          // Increment streak only once per day
           if (m.lastCompletionDate !== today) {
             newStreak += 1;
             lastDate = today;
           }
         } else {
-          // Revoke resets streak logic
           newStreak = Math.max(0, newStreak - 1);
         }
         
         const newPoints = (m.points || 0) + pointDelta;
-        
-        const achievements = m.achievements || [];
-        if (newPoints >= 1000 && !achievements.includes('xp-1000')) {
-          achievements.push('xp-1000');
-          toast({ title: "Achievement Unlocked!", description: `${m.name} earned 'XP Titan'!` });
-        }
-
-        return { ...m, points: newPoints, streak: newStreak, achievements, lastCompletionDate: lastDate };
+        return { ...m, points: newPoints, streak: newStreak, lastCompletionDate: lastDate };
       }
       return m;
     });
@@ -131,7 +169,13 @@ export default function ChoresPage() {
   const handleClaim = (id: string) => {
     const chore = chores.find(c => c.id === id);
     const updated = chores.map(c => 
-      c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMemberName, assignedToId: activeMemberId } : c
+      c.id === id ? { 
+        ...c, 
+        status: 'claimed' as const, 
+        assignedTo: activeMemberName, 
+        assignedToId: activeMemberId,
+        lastActionAt: new Date().toISOString()
+      } : c
     );
     saveChores(updated);
     addNotification(`${activeMemberName} has joined the battle for: ${chore?.title}`, 'claim');
@@ -142,7 +186,11 @@ export default function ChoresPage() {
     const chore = chores.find(c => c.id === id);
     if (!chore) return;
 
-    const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
+    const updated = chores.map(c => c.id === id ? { 
+      ...c, 
+      status: 'completed' as const,
+      lastActionAt: new Date().toISOString()
+    } : c);
     saveChores(updated);
     updateMemberStats(activeMemberId, chore.points);
     updatePrizeXP(chore.points);
@@ -155,14 +203,21 @@ export default function ChoresPage() {
     if (!chore) return;
 
     const updated = chores.map(c => 
-      c.id === id ? { ...c, status: 'pending' as const, assignedTo: undefined, assignedToId: undefined } : c
+      c.id === id ? { ...c, status: 'pending' as const, assignedTo: undefined, assignedToId: undefined, lastActionAt: undefined } : c
     );
     saveChores(updated);
     if (chore.status === 'completed' && chore.assignedToId) {
       updateMemberStats(chore.assignedToId, -chore.points, true);
       updatePrizeXP(-chore.points);
     }
-    toast({ variant: "destructive", title: "Mission Revoked", description: "The chore has been returned to the board and progress was lost." });
+    toast({ variant: "destructive", title: "Mission Revoked", description: "The chore has been returned to the board." });
+  };
+
+  const handleDeleteChore = (id: string) => {
+    if (!isAdmin) return;
+    const updated = chores.filter(c => c.id !== id);
+    saveChores(updated);
+    toast({ title: "Mission Vanished", description: "The mission has been removed from the board." });
   };
 
   const saveChores = (updated: Chore[]) => {
@@ -233,7 +288,7 @@ export default function ChoresPage() {
                     <DialogHeader>
                       <DialogTitle className="text-2xl font-headline">Forge New Mission</DialogTitle>
                       <DialogDescription>
-                        Set the points and deadline for this household task.
+                        Set the points and frequency for this household task.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -339,6 +394,7 @@ export default function ChoresPage() {
                     onClaim={handleClaim}
                     onComplete={handleComplete}
                     onRevoke={handleRevoke}
+                    onDelete={handleDeleteChore}
                     isAdmin={isAdmin}
                   />
                 ))}

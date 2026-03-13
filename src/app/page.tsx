@@ -15,6 +15,7 @@ import { collection, query, where, addDoc, serverTimestamp, onSnapshot } from "f
 import { toast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { isSameDay, isSameWeek, isSameMonth } from "date-fns";
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser();
@@ -53,7 +54,6 @@ export default function Dashboard() {
         const members = savedMembers ? JSON.parse(savedMembers) : [];
         const savedActiveId = localStorage.getItem('activeMemberId');
 
-        // Sync local profiles if they exist or create a new one for the current user
         if (!savedActiveId || members.length === 0) {
           const profile = {
             id: user.uid,
@@ -71,20 +71,26 @@ export default function Dashboard() {
           setActiveMember(profile);
           window.dispatchEvent(new Event('storage'));
         } else {
-          // If profiles exist, find the active one
           const active = members.find((m: any) => m.id === savedActiveId);
           if (active) setActiveMember(active);
         }
       } else {
         setHasHousehold(false);
       }
-    }, (err) => {
-      console.error("Dashboard Snapshot Error:", err);
     });
 
     const updateFromStorage = () => {
       const savedChores = localStorage.getItem('household_chores');
-      if (savedChores) setChores(JSON.parse(savedChores));
+      const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
+      
+      // Run recurring reset logic
+      const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
+      if (hasChanges) {
+        localStorage.setItem('household_chores', JSON.stringify(updatedChores));
+        setChores(updatedChores);
+      } else {
+        setChores(parsedChores);
+      }
 
       const savedMembers = localStorage.getItem('household_members');
       const activeId = localStorage.getItem('activeMemberId');
@@ -105,6 +111,41 @@ export default function Dashboard() {
       window.removeEventListener('storage', updateFromStorage);
     };
   }, [user, db]);
+
+  const syncAndResetRecurringChores = (currentChores: Chore[]) => {
+    const now = new Date();
+    let hasChanges = false;
+
+    const updated = currentChores.map(chore => {
+      if (chore.status === 'pending') return chore;
+      if (!chore.lastActionAt) return chore;
+
+      const lastDate = new Date(chore.lastActionAt);
+      let shouldReset = false;
+
+      if (chore.frequency === 'daily') {
+        shouldReset = !isSameDay(now, lastDate);
+      } else if (chore.frequency === 'weekly') {
+        shouldReset = !isSameWeek(now, lastDate, { weekStartsOn: 1 });
+      } else if (chore.frequency === 'monthly') {
+        shouldReset = !isSameMonth(now, lastDate);
+      }
+
+      if (shouldReset) {
+        hasChanges = true;
+        return {
+          ...chore,
+          status: 'pending' as const,
+          assignedTo: undefined,
+          assignedToId: undefined,
+          lastActionAt: undefined
+        };
+      }
+      return chore;
+    });
+
+    return { updatedChores: updated, hasChanges };
+  };
 
   const addNotification = (message: string, type: AppNotification['type']) => {
     const saved = localStorage.getItem('household_notifications');
@@ -171,7 +212,13 @@ export default function Dashboard() {
     const chore = chores.find(c => c.id === id);
     if (!chore || !activeMember) return;
     const updated = chores.map(c => 
-      c.id === id ? { ...c, status: 'claimed' as const, assignedTo: activeMember.name, assignedToId: activeMember.id } : c
+      c.id === id ? { 
+        ...c, 
+        status: 'claimed' as const, 
+        assignedTo: activeMember.name, 
+        assignedToId: activeMember.id,
+        lastActionAt: new Date().toISOString()
+      } : c
     );
     saveChores(updated);
     addNotification(`${activeMember.name} has joined the battle for: ${chore.title}`, 'claim');
@@ -182,7 +229,11 @@ export default function Dashboard() {
     const chore = chores.find(c => c.id === id);
     if (!chore || !activeMember) return;
 
-    const updated = chores.map(c => c.id === id ? { ...c, status: 'completed' as const } : c);
+    const updated = chores.map(c => c.id === id ? { 
+      ...c, 
+      status: 'completed' as const,
+      lastActionAt: new Date().toISOString()
+    } : c);
     saveChores(updated);
 
     const savedMembers = localStorage.getItem('household_members');
@@ -279,7 +330,7 @@ export default function Dashboard() {
 
   const activeMissions = chores.filter(c => c.status === 'claimed' && c.assignedToId === activeMember?.id);
   const openMissions = chores.filter(c => c.status === 'pending');
-  const choresTodayCount = chores.filter(c => c.status === 'completed' && c.assignedToId === activeMember?.id).length;
+  const choresTodayCount = chores.filter(c => c.status === 'completed' && c.assignedToId === activeMember?.id && isSameDay(new Date(), new Date(c.lastActionAt || 0))).length;
 
   const stats = [
     { label: "Current XP", value: (activeMember?.points || 0).toLocaleString(), icon: Star, color: "bg-primary" },
@@ -287,8 +338,8 @@ export default function Dashboard() {
     { label: "Victories Today", value: choresTodayCount, icon: Trophy, color: "bg-accent" },
   ];
 
-  const prizeProgress = Math.min((prize.currentXP / prize.xpGoal) * 100, 100);
-  const isPrizeUnlocked = prize.currentXP >= prize.xpGoal;
+  const prizeProgress = Math.min((prize.currentXP / (prize.xpGoal || 1000)) * 100, 100);
+  const isPrizeUnlocked = prize.currentXP >= (prize.xpGoal || 1000);
 
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20 transition-colors duration-500">
@@ -322,7 +373,7 @@ export default function Dashboard() {
               </div>
               <CardDescription className="flex justify-between text-xs font-bold uppercase mt-1">
                 <span>Household Progress</span>
-                <span>{prize.currentXP.toLocaleString()} / {prize.xpGoal.toLocaleString()} XP</span>
+                <span>{prize.currentXP.toLocaleString()} / {(prize.xpGoal || 1000).toLocaleString()} XP</span>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
