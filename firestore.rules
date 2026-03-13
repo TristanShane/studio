@@ -12,7 +12,8 @@ service cloud.firestore {
     match /households/{householdId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn();
-      // Only the owner can update household settings or delete the base
+      // Only the owner can update household settings or delete the base.
+      // resource.data.ownerId must match the authenticated user UID.
       allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid; 
     }
 

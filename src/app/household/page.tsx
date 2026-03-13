@@ -138,12 +138,15 @@ export default function HouseholdPage() {
     };
   }, [user, db]);
 
-  const isOwner = household?.ownerId === user?.uid;
   const activeMember = members.find(m => m.id === activeMemberId);
+  
+  // CRITICAL: isOwner requires BOTH Firebase Auth UID match AND the Active Profile being the Owner role.
+  // This prevents non-owner profiles on a shared device from decommissioning.
+  const isOwner = household?.ownerId === user?.uid && activeMember?.role === 'Owner';
   const isAdmin = activeMember?.role === 'Admin' || activeMember?.role === 'Owner';
 
   const handleApprove = async (request: any) => {
-    if (!household || !isOwner) return;
+    if (!household || !isAdmin) return;
     const hRef = doc(db, "households", household.id);
     await updateDoc(hRef, {
       members: arrayUnion(request.userId)
@@ -180,6 +183,10 @@ export default function HouseholdPage() {
       localStorage.clear();
       window.dispatchEvent(new Event('storage'));
       router.push("/login");
+      toast({ title: "Base Decommissioned", description: "The household and all associated data have been deleted." });
+    }).catch(err => {
+      console.error(err);
+      toast({ variant: "destructive", title: "Action Denied", description: "Only the Household Guardian can perform this action." });
     }).finally(() => setIsDeleting(false));
   };
 
@@ -271,7 +278,7 @@ export default function HouseholdPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {joinRequests.length > 0 && isOwner && (
+            {joinRequests.length > 0 && isAdmin && (
               <Card className="border-2 border-primary/20 bg-primary/5">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -380,7 +387,7 @@ export default function HouseholdPage() {
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Total Data Wipe Requested</AlertDialogTitle>
-                      <AlertDialogDescription>All warrior rosters, achievements, XP, and history will be permanently deleted. This action is final and can only be performed by the Household Guardian.</AlertDialogDescription>
+                      <AlertDialogDescription>All warrior rosters, achievements, XP, and history will be permanently deleted. This action is final and can only be performed by the primary Household Guardian (Owner).</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Keep Base</AlertDialogCancel>

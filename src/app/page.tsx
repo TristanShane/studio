@@ -49,8 +49,12 @@ export default function Dashboard() {
         const hData = hDoc.data();
         const isActuallyOwner = hData.ownerId === user.uid;
         
+        const savedMembers = localStorage.getItem('household_members');
+        const members = savedMembers ? JSON.parse(savedMembers) : [];
         const savedActiveId = localStorage.getItem('activeMemberId');
-        if (!savedActiveId) {
+
+        // Sync local profiles if they exist or create a new one for the current user
+        if (!savedActiveId || members.length === 0) {
           const profile = {
             id: user.uid,
             name: user.displayName || (isActuallyOwner ? "Guardian" : "Warrior"),
@@ -66,6 +70,10 @@ export default function Dashboard() {
           localStorage.setItem('household_members', JSON.stringify([profile]));
           setActiveMember(profile);
           window.dispatchEvent(new Event('storage'));
+        } else {
+          // If profiles exist, find the active one
+          const active = members.find((m: any) => m.id === savedActiveId);
+          if (active) setActiveMember(active);
         }
       } else {
         setHasHousehold(false);
