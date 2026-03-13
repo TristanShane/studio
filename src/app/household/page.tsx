@@ -229,7 +229,7 @@ export default function HouseholdPage() {
             {isOwner && (
               <div className="pt-8 space-y-4">
                 <div className="grid grid-cols-1 gap-4">
-                  <Button asChild variant="outline" className="border-primary text-primary w-full"><Link href="/thanks"><Sparkles className="w-4 h-4 mr-2" /> Support Tristan</Link></Button>
+                  <Button asChild variant="outline" className="border-primary text-primary w-full"><Link href="/thanks"><Sparkles className="w-4 h-4 mr-2" /> Support Developers</Link></Button>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild><Button variant="destructive" className="w-full font-bold shadow-lg"><Trash2 className="w-4 h-4 mr-2" /> Decommission Household Base</Button></AlertDialogTrigger>
