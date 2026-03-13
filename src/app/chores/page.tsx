@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { isSameDay, isSameWeek, isSameMonth } from "date-fns";
+import { isSameDay, isSameWeek, isSameMonth, startOfWeek, startOfMonth } from "date-fns";
 import { 
   Dialog, 
   DialogContent, 
@@ -64,7 +64,6 @@ export default function ChoresPage() {
         if (active) {
           setActiveMemberId(active.id);
           setActiveMemberName(active.name);
-          // Security: Role-based admin check
           setIsAdmin(active.role === 'Admin' || active.role === 'Owner');
         }
       }
@@ -79,6 +78,7 @@ export default function ChoresPage() {
     const now = new Date();
     let hasChanges = false;
 
+    // 1. Reset Chores
     const updated = currentChores.map(chore => {
       if (chore.status === 'pending') return chore;
       if (!chore.lastActionAt) return chore;
@@ -89,7 +89,6 @@ export default function ChoresPage() {
       if (chore.frequency === 'daily') {
         shouldReset = !isSameDay(now, lastDate);
       } else if (chore.frequency === 'weekly') {
-        // Different week starting Monday
         shouldReset = !isSameWeek(now, lastDate, { weekStartsOn: 1 });
       } else if (chore.frequency === 'monthly') {
         shouldReset = !isSameMonth(now, lastDate);
@@ -108,6 +107,24 @@ export default function ChoresPage() {
       return chore;
     });
 
+    // 2. Reset Prize XP if cycle passed
+    const savedPrize = localStorage.getItem('household_prize');
+    if (savedPrize) {
+      const p = JSON.parse(savedPrize);
+      const lastReset = p.lastResetAt ? new Date(p.lastResetAt) : new Date(0);
+      let prizeCycleReset = false;
+
+      if (p.frequency === 'Daily') prizeCycleReset = !isSameDay(now, lastReset);
+      if (p.frequency === 'Weekly') prizeCycleReset = !isSameWeek(now, lastReset, { weekStartsOn: 1 });
+      if (p.frequency === 'Monthly') prizeCycleReset = !isSameMonth(now, lastReset);
+
+      if (prizeCycleReset) {
+        const updatedPrize = { ...p, currentXP: 0, lastResetAt: now.toISOString() };
+        localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
+        hasChanges = true;
+      }
+    }
+
     return { updatedChores: updated, hasChanges };
   };
 
@@ -123,6 +140,20 @@ export default function ChoresPage() {
     };
     localStorage.setItem('household_notifications', JSON.stringify([...notifications, newNotif]));
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const addToHistory = (chore: Chore) => {
+    const savedHistory = localStorage.getItem('household_history');
+    const history = savedHistory ? JSON.parse(savedHistory) : [];
+    const entry = {
+      id: `history-${Date.now()}`,
+      title: chore.title,
+      points: chore.points,
+      userId: activeMemberId,
+      userName: activeMemberName,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('household_history', JSON.stringify([...history, entry]));
   };
 
   const updateMemberStats = (memberId: string, pointDelta: number, isRevoke: boolean = false) => {
@@ -191,6 +222,8 @@ export default function ChoresPage() {
       status: 'completed' as const,
       lastActionAt: new Date().toISOString()
     } : c);
+    
+    addToHistory(chore);
     saveChores(updated);
     updateMemberStats(activeMemberId, chore.points);
     updatePrizeXP(chore.points);
@@ -206,6 +239,19 @@ export default function ChoresPage() {
       c.id === id ? { ...c, status: 'pending' as const, assignedTo: undefined, assignedToId: undefined, lastActionAt: undefined } : c
     );
     saveChores(updated);
+    
+    // Remove last history entry for this chore if revoking
+    const savedHistory = localStorage.getItem('household_history');
+    if (savedHistory) {
+      const history = JSON.parse(savedHistory);
+      const lastIndex = [...history].reverse().findIndex((h: any) => h.title === chore.title && h.userId === chore.assignedToId);
+      if (lastIndex !== -1) {
+        const actualIndex = history.length - 1 - lastIndex;
+        history.splice(actualIndex, 1);
+        localStorage.setItem('household_history', JSON.stringify(history));
+      }
+    }
+
     if (chore.status === 'completed' && chore.assignedToId) {
       updateMemberStats(chore.assignedToId, -chore.points, true);
       updatePrizeXP(-chore.points);
@@ -380,7 +426,7 @@ export default function ChoresPage() {
           <TabsList className="grid w-full grid-cols-3 md:w-auto mb-8 bg-white border">
             <TabsTrigger value="pending">Open Board</TabsTrigger>
             <TabsTrigger value="my-chores">My Missions</TabsTrigger>
-            <TabsTrigger value="completed">Victory Log</TabsTrigger>
+            <TabsTrigger value="completed">Recent Victories</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-0">
@@ -408,7 +454,7 @@ export default function ChoresPage() {
                 <p className="text-muted-foreground max-w-xs mx-auto text-sm">
                   {activeTab === 'pending' ? 'All missions have been claimed or finished.' : 
                    activeTab === 'my-chores' ? 'You have no active missions. Claim one from the board!' :
-                   'No victories have been recorded yet.'}
+                   'No missions have been completed in this current session.'}
                 </p>
               </div>
             )}

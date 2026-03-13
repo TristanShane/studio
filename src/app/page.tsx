@@ -23,7 +23,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [chores, setChores] = useState<Chore[]>([]);
   const [activeMember, setActiveMember] = useState<any>(null);
-  const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly", xpGoal: 1000, currentXP: 0 });
+  const [prize, setPrize] = useState({ title: "Pizza Night", frequency: "Weekly", xpGoal: 1000, currentXP: 0, lastResetAt: null });
   const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isPendingRequest, setIsPendingRequest] = useState(false);
@@ -64,7 +64,8 @@ export default function Dashboard() {
             theme: 'member-1',
             points: 0,
             streak: 0,
-            lastCompletionDate: null
+            lastCompletionDate: null,
+            history: []
           };
           localStorage.setItem('activeMemberId', user.uid);
           localStorage.setItem('household_members', JSON.stringify([profile]));
@@ -83,7 +84,6 @@ export default function Dashboard() {
       const savedChores = localStorage.getItem('household_chores');
       const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
       
-      // Run recurring reset logic
       const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
       if (hasChanges) {
         localStorage.setItem('household_chores', JSON.stringify(updatedChores));
@@ -116,6 +116,7 @@ export default function Dashboard() {
     const now = new Date();
     let hasChanges = false;
 
+    // 1. Reset Recurring Missions
     const updated = currentChores.map(chore => {
       if (chore.status === 'pending') return chore;
       if (!chore.lastActionAt) return chore;
@@ -123,26 +124,35 @@ export default function Dashboard() {
       const lastDate = new Date(chore.lastActionAt);
       let shouldReset = false;
 
-      if (chore.frequency === 'daily') {
-        shouldReset = !isSameDay(now, lastDate);
-      } else if (chore.frequency === 'weekly') {
-        shouldReset = !isSameWeek(now, lastDate, { weekStartsOn: 1 });
-      } else if (chore.frequency === 'monthly') {
-        shouldReset = !isSameMonth(now, lastDate);
-      }
+      if (chore.frequency === 'daily') shouldReset = !isSameDay(now, lastDate);
+      else if (chore.frequency === 'weekly') shouldReset = !isSameWeek(now, lastDate, { weekStartsOn: 1 });
+      else if (chore.frequency === 'monthly') shouldReset = !isSameMonth(now, lastDate);
 
       if (shouldReset) {
         hasChanges = true;
-        return {
-          ...chore,
-          status: 'pending' as const,
-          assignedTo: undefined,
-          assignedToId: undefined,
-          lastActionAt: undefined
-        };
+        return { ...chore, status: 'pending' as const, assignedTo: undefined, assignedToId: undefined, lastActionAt: undefined };
       }
       return chore;
     });
+
+    // 2. Reset Prize XP Cycle
+    const savedPrize = localStorage.getItem('household_prize');
+    if (savedPrize) {
+      const p = JSON.parse(savedPrize);
+      const lastReset = p.lastResetAt ? new Date(p.lastResetAt) : new Date(0);
+      let prizeCycleReset = false;
+
+      if (p.frequency === 'Daily') prizeCycleReset = !isSameDay(now, lastReset);
+      if (p.frequency === 'Weekly') prizeCycleReset = !isSameWeek(now, lastReset, { weekStartsOn: 1 });
+      if (p.frequency === 'Monthly') prizeCycleReset = !isSameMonth(now, lastReset);
+
+      if (prizeCycleReset) {
+        const updatedPrize = { ...p, currentXP: 0, lastResetAt: now.toISOString() };
+        localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
+        setPrize(updatedPrize);
+        hasChanges = true;
+      }
+    }
 
     return { updatedChores: updated, hasChanges };
   };
@@ -159,6 +169,20 @@ export default function Dashboard() {
     };
     localStorage.setItem('household_notifications', JSON.stringify([...notifications, newNotif]));
     window.dispatchEvent(new Event('storage'));
+  };
+
+  const addToHistory = (chore: Chore) => {
+    const savedHistory = localStorage.getItem('household_history');
+    const history = savedHistory ? JSON.parse(savedHistory) : [];
+    const entry = {
+      id: `history-${Date.now()}`,
+      title: chore.title,
+      points: chore.points,
+      userId: activeMember.id,
+      userName: activeMember.name,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('household_history', JSON.stringify([...history, entry]));
   };
 
   const handleCreateHousehold = async () => {
@@ -184,28 +208,22 @@ export default function Dashboard() {
         theme: 'member-1',
         points: 0,
         streak: 0,
-        lastCompletionDate: null
+        lastCompletionDate: null,
+        history: []
       };
       localStorage.setItem('activeMemberId', user.uid);
       localStorage.setItem('household_members', JSON.stringify([ownerProfile]));
       localStorage.setItem('household_chores', JSON.stringify([]));
+      localStorage.setItem('household_history', JSON.stringify([]));
       localStorage.setItem('household_notifications', JSON.stringify([]));
-      localStorage.setItem('household_prize', JSON.stringify({ title: "Pizza Night", frequency: "Weekly", xpGoal: 1000, currentXP: 0 }));
+      localStorage.setItem('household_prize', JSON.stringify({ title: "Pizza Night", frequency: "Weekly", xpGoal: 1000, currentXP: 0, lastResetAt: new Date().toISOString() }));
       
       setHasHousehold(true);
       setActiveMember(ownerProfile);
       window.dispatchEvent(new Event('storage'));
       toast({ title: "Base Forged!", description: "Welcome to your new HQ, Guardian." });
     })
-    .finally(() => {
-      setIsCreating(false);
-    });
-  };
-
-  const saveChores = (updated: Chore[]) => {
-    setChores(updated);
-    localStorage.setItem('household_chores', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
+    .finally(() => setIsCreating(false));
   };
 
   const handleClaim = (id: string) => {
@@ -220,8 +238,10 @@ export default function Dashboard() {
         lastActionAt: new Date().toISOString()
       } : c
     );
-    saveChores(updated);
+    setChores(updated);
+    localStorage.setItem('household_chores', JSON.stringify(updated));
     addNotification(`${activeMember.name} has joined the battle for: ${chore.title}`, 'claim');
+    window.dispatchEvent(new Event('storage'));
     toast({ title: "Mission Claimed!", description: `You've joined the battle for this mission.` });
   };
 
@@ -234,13 +254,15 @@ export default function Dashboard() {
       status: 'completed' as const,
       lastActionAt: new Date().toISOString()
     } : c);
-    saveChores(updated);
+    
+    addToHistory(chore);
+    setChores(updated);
+    localStorage.setItem('household_chores', JSON.stringify(updated));
 
     const savedMembers = localStorage.getItem('household_members');
     if (savedMembers) {
       const members = JSON.parse(savedMembers);
       const today = new Date().toISOString().split('T')[0];
-      
       const updatedMembers = members.map((m: any) => {
         if (m.id === activeMember.id) {
           const hasAlreadyCompletedToday = m.lastCompletionDate === today;
@@ -294,9 +316,7 @@ export default function Dashboard() {
               <Button variant="outline" onClick={() => {
                 localStorage.removeItem('pending_join_request');
                 setIsPendingRequest(false);
-              }} className="w-full">
-                Cancel Request & Start Over
-              </Button>
+              }} className="w-full">Cancel Request</Button>
             </>
           ) : (
             <>
@@ -305,22 +325,11 @@ export default function Dashboard() {
               </div>
               <div className="space-y-2">
                 <h1 className="text-3xl font-headline font-bold">Base Not Found</h1>
-                <p className="text-muted-foreground">You are not part of a household yet. Would you like to build your own battle station?</p>
+                <p className="text-muted-foreground">You are not part of a household yet. Build your own battle station?</p>
               </div>
-              <Button 
-                onClick={handleCreateHousehold} 
-                size="lg" 
-                disabled={isCreating}
-                className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg shadow-lg shadow-primary/20"
-              >
+              <Button onClick={handleCreateHousehold} size="lg" disabled={isCreating} className="w-full h-14 bg-primary font-bold text-lg shadow-lg">
                 {isCreating ? "Constructing HQ..." : "Forge New Household HQ"}
               </Button>
-              <div className="pt-4 border-t">
-                <p className="text-xs text-muted-foreground mb-4">Entering an existing base? Logout and use a Battle Code.</p>
-                <Button variant="outline" asChild className="w-full">
-                  <Link href="/login">Return to Login</Link>
-                </Button>
-              </div>
             </>
           )}
         </div>
@@ -342,84 +351,58 @@ export default function Dashboard() {
   const isPrizeUnlocked = prize.currentXP >= (prize.xpGoal || 1000);
 
   return (
-    <div className="min-h-screen pb-24 md:pb-8 md:pt-20 transition-colors duration-500">
+    <div className="min-h-screen pb-24 md:pb-8 md:pt-20">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
         <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-headline font-bold text-foreground">Warrior HQ</h1>
-            <p className="text-muted-foreground">Currently playing as <span className="text-primary font-bold">{activeMember?.name || "Selecting..."}</span></p>
+            <p className="text-muted-foreground">Playing as <span className="text-primary font-bold">{activeMember?.name}</span></p>
           </div>
-          <div className="flex gap-2">
-            <Button asChild className="w-full md:w-auto bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-              <Link href="/chores">
-                <Target className="w-4 h-4 mr-2" /> Mission Board
-              </Link>
-            </Button>
-          </div>
+          <Button asChild className="bg-primary shadow-lg">
+            <Link href="/chores"><Target className="w-4 h-4 mr-2" /> Mission Board</Link>
+          </Button>
         </section>
 
         <section>
-          <Card className={`border-2 overflow-hidden transition-all ${isPrizeUnlocked ? 'border-yellow-400 bg-yellow-50 shadow-yellow-100 shadow-xl' : 'border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5'}`}>
+          <Card className={`border-2 transition-all ${isPrizeUnlocked ? 'border-yellow-400 bg-yellow-50 shadow-xl' : 'border-primary/20 bg-gradient-to-r from-primary/5 to-accent/5'}`}>
             <CardHeader className="pb-2">
               <div className="flex justify-between items-start">
                 <CardTitle className="flex items-center gap-2 text-xl font-headline">
                   <Gift className={`w-6 h-6 ${isPrizeUnlocked ? 'text-yellow-600' : 'text-primary'}`} />
-                  Battle Reward: <span className={isPrizeUnlocked ? 'text-yellow-700' : 'text-primary'}>{prize.title}</span>
+                  Reward: <span className={isPrizeUnlocked ? 'text-yellow-700' : 'text-primary'}>{prize.title}</span>
                 </CardTitle>
-                <Badge variant={isPrizeUnlocked ? 'default' : 'outline'} className={isPrizeUnlocked ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-white/50'}>
+                <Badge variant={isPrizeUnlocked ? 'default' : 'outline'} className={isPrizeUnlocked ? 'bg-yellow-500' : ''}>
                   {isPrizeUnlocked ? 'UNLOCKED' : `${prize.frequency} Quest`}
                 </Badge>
               </div>
-              <CardDescription className="flex justify-between text-xs font-bold uppercase mt-1">
-                <span>Household Progress</span>
+              <CardDescription className="flex justify-between font-bold uppercase mt-1">
+                <span>Cycle Progress</span>
                 <span>{prize.currentXP.toLocaleString()} / {(prize.xpGoal || 1000).toLocaleString()} XP</span>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Progress value={prizeProgress} className={`h-3 ${isPrizeUnlocked ? 'bg-yellow-200 [&>div]:bg-yellow-500' : ''}`} />
               <p className="text-sm text-muted-foreground flex items-center gap-2">
-                {isPrizeUnlocked ? (
-                  <Sparkles className="w-4 h-4 text-yellow-600 animate-pulse" />
-                ) : (
-                  <Clock className="w-4 h-4 text-accent" />
-                )}
-                {isPrizeUnlocked ? 'VICTORY! The reward has been earned by the household!' : 'Complete missions to earn this reward for the family!'}
+                {isPrizeUnlocked ? <Sparkles className="w-4 h-4 text-yellow-600 animate-pulse" /> : <Clock className="w-4 h-4 text-accent" />}
+                {isPrizeUnlocked ? 'VICTORY! The reward has been earned!' : `Complete missions to earn this reward by the end of the ${prize.frequency.toLowerCase()}!`}
               </p>
             </CardContent>
           </Card>
         </section>
 
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {stats.map((stat, i) => (
-            <StatCard key={i} {...stat} />
-          ))}
+          {stats.map((stat, i) => <StatCard key={i} {...stat} />)}
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-headline font-bold flex items-center gap-2">
-                <Swords className="w-5 h-5 text-primary" /> Your Active Missions
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-              {activeMissions.length > 0 ? (
-                activeMissions.map(chore => (
-                  <ChoreCard 
-                    key={chore.id} 
-                    chore={chore} 
-                    activeMemberName={activeMember?.name || ""}
-                    onComplete={handleComplete}
-                  />
-                ))
-              ) : (
-                <div className="py-12 text-center bg-white rounded-2xl border border-dashed border-border shadow-sm">
-                  <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Target className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                  <h3 className="font-bold text-lg">No Missions Claimed</h3>
-                  <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-4">You have no active tasks. Claim one from the open board!</p>
+            <h2 className="text-xl font-headline font-bold flex items-center gap-2"><Swords className="w-5 h-5 text-primary" /> Your Active Missions</h2>
+            <div className="grid gap-4">
+              {activeMissions.length > 0 ? activeMissions.map(chore => <ChoreCard key={chore.id} chore={chore} activeMemberName={activeMember?.name || ""} onComplete={handleComplete} />) : (
+                <div className="py-12 text-center bg-white rounded-2xl border border-dashed border-border">
+                  <Target className="w-6 h-6 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">No missions claimed. Visit the board!</p>
                 </div>
               )}
             </div>
@@ -427,32 +410,11 @@ export default function Dashboard() {
 
           <section className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-headline font-bold flex items-center gap-2">
-                <Target className="w-5 h-5 text-accent" /> Open Mission Board
-              </h2>
-              <Link href="/chores" className="text-primary text-sm font-bold flex items-center hover:underline">
-                View All <ChevronRight className="w-4 h-4" />
-              </Link>
+              <h2 className="text-xl font-headline font-bold flex items-center gap-2"><Target className="w-5 h-5 text-accent" /> Open Missions</h2>
+              <Link href="/chores" className="text-primary text-sm font-bold flex items-center hover:underline">View All <ChevronRight className="w-4 h-4" /></Link>
             </div>
-            <div className="grid grid-cols-1 gap-4">
-              {openMissions.length > 0 ? (
-                openMissions.slice(0, 3).map(chore => (
-                  <ChoreCard 
-                    key={chore.id} 
-                    chore={chore} 
-                    activeMemberName={activeMember?.name || ""}
-                    onClaim={handleClaim}
-                  />
-                ))
-              ) : (
-                <div className="py-12 text-center bg-white rounded-2xl border border-dashed border-border shadow-sm">
-                  <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Trophy className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                  <h3 className="font-bold text-lg">Board Is Clear!</h3>
-                  <p className="text-muted-foreground text-sm max-w-xs mx-auto">All current missions have been assigned.</p>
-                </div>
-              )}
+            <div className="grid gap-4">
+              {openMissions.slice(0, 3).map(chore => <ChoreCard key={chore.id} chore={chore} activeMemberName={activeMember?.name || ""} onClaim={handleClaim} />)}
             </div>
           </section>
         </div>
