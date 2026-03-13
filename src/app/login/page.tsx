@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,7 +7,7 @@ import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Shield, Swords, Sparkles, AlertCircle } from "lucide-react";
+import { Trophy, Shield, Swords, Sparkles, AlertCircle, ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,7 +19,7 @@ export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const [battleCode, setBattleCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<{title: string, message: string} | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -52,7 +51,15 @@ export default function LoginPage() {
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/operation-not-allowed') {
-        setAuthError("Google Sign-In is not enabled. Please enable it in the Firebase Console (Authentication > Sign-in method).");
+        setAuthError({
+          title: "Setup Required",
+          message: "Google Sign-In is not enabled. Please enable it in the Firebase Console (Authentication > Sign-in method)."
+        });
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setAuthError({
+          title: "Domain Not Authorized",
+          message: `This domain (${window.location.hostname}) needs to be added to your Authorized Domains in the Firebase Console (Authentication > Settings > Authorized domains).`
+        });
       } else {
         toast({ variant: "destructive", title: "Login Failed", description: error.message });
       }
@@ -99,7 +106,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
       <Card className="w-full max-w-md border-none shadow-2xl">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto bg-primary w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 rotate-3">
+          <div className="mx-auto bg-primary w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 rotate-3 transition-transform hover:scale-110 cursor-pointer" onClick={() => window.location.reload()}>
             <Trophy className="text-white w-10 h-10" />
           </div>
           <div className="space-y-1">
@@ -109,10 +116,20 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {authError && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="bg-destructive/5">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Setup Required</AlertTitle>
-              <AlertDescription>{authError}</AlertDescription>
+              <AlertTitle>{authError.title}</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{authError.message}</p>
+                <a 
+                  href="https://console.firebase.google.com/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-bold underline hover:opacity-80"
+                >
+                  Go to Firebase Console <ExternalLink className="w-3 h-3" />
+                </a>
+              </AlertDescription>
             </Alert>
           )}
 

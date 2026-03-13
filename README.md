@@ -19,10 +19,14 @@ Create a new repository on [GitHub](https://github.com) and push your current co
 ### 3. Deploy
 Once connected, Firebase will build and deploy your app. You will receive a new URL ending in `.web.app` or `.firebaseapp.com`.
 
-### 4. Add a Custom Domain
-1. In the **App Hosting** dashboard for your project, go to the **Settings** or **Domains** tab.
-2. Click **Connect Domain**.
-3. Enter your "proper" domain name (e.g., `www.yourfamilyname.com`) and follow the instructions to update your DNS records.
+## 🛠 Troubleshooting Login (Unauthorized Domain)
+
+If you see an "Unauthorized Domain" error when logging in with Google:
+1. Copy the current URL of your app (e.g., `studio-1165218489-108ea.cloudworkstations.dev`).
+2. Go to the [Firebase Console](https://console.firebase.google.com/).
+3. Navigate to **Authentication** > **Settings** > **Authorized domains**.
+4. Click **Add domain** and paste your domain.
+5. Click **Add**.
 
 ## Features
 - **Mission Board**: Claim and complete daily, weekly, or monthly chores.
