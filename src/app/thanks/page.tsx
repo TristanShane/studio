@@ -8,9 +8,8 @@ import { Heart, Coffee, ExternalLink, ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 export default function ThanksPage() {
-  // REPLACE THIS with your personal PayPal.Me link or email-based link
-  // Example: https://www.paypal.me/YourUsername
-  const paypalUrl = "https://www.paypal.com/donate"; 
+  // Personal PayPal.Me link for tips
+  const paypalUrl = "https://paypal.me/tristanwentzel"; 
 
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20 bg-background">
@@ -42,7 +41,7 @@ export default function ThanksPage() {
             </p>
             
             <div className="pt-4">
-              <Button asChild size="lg" className="w-full bg-[#0070ba] hover:bg-[#003087] text-white font-bold h-16 text-lg shadow-lg">
+              <Button asChild size="lg" className="w-full bg-[#0070ba] hover:bg-[#003087] text-white font-bold h-16 text-lg shadow-lg transition-transform hover:scale-[1.02]">
                 <a 
                   href={paypalUrl}
                   target="_blank" 
@@ -50,14 +49,14 @@ export default function ThanksPage() {
                   className="flex items-center justify-center gap-3"
                 >
                   <Coffee className="w-6 h-6" />
-                  Tip via PayPal
+                  Tip via PayPal.Me
                   <ExternalLink className="w-4 h-4 opacity-50" />
                 </a>
               </Button>
             </div>
             
             <p className="text-[10px] text-muted-foreground italic">
-              *A Personal PayPal account works perfectly. You will be redirected to PayPal's secure external site.
+              *This link opens your personal PayPal.Me profile securely in a new tab.
             </p>
           </CardContent>
         </Card>
