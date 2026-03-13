@@ -178,36 +178,6 @@ export default function HouseholdPage() {
     toast({ title: "Prize Quest Updated!" });
   };
 
-  const simulateTimeTravel = () => {
-    if (!isOwner) return;
-    // 1. Reset Chores (Move dates back)
-    const savedChores = localStorage.getItem('household_chores');
-    if (savedChores) {
-      const chores = JSON.parse(savedChores);
-      const dayAgo = new Date(Date.now() - (25 * 60 * 60 * 1000)).toISOString();
-      const weekAgo = new Date(Date.now() - (8 * 24 * 60 * 60 * 1000)).toISOString();
-      const updated = chores.map((c: any) => ({ ...c, lastActionAt: c.frequency === 'daily' ? dayAgo : weekAgo }));
-      localStorage.setItem('household_chores', JSON.stringify(updated));
-    }
-    // 2. Reset Prize cycle back and Wipe Points
-    const savedPrize = localStorage.getItem('household_prize');
-    if (savedPrize) {
-      const p = JSON.parse(savedPrize);
-      const wayBack = new Date(Date.now() - (32 * 24 * 60 * 60 * 1000)).toISOString();
-      localStorage.setItem('household_prize', JSON.stringify({ ...p, lastResetAt: wayBack }));
-    }
-    // Wipe all member points to simulate a new battle cycle
-    const savedMembers = localStorage.getItem('household_members');
-    if (savedMembers) {
-      const membersList = JSON.parse(savedMembers);
-      const resetList = membersList.map((m: any) => ({ ...m, points: 0 }));
-      localStorage.setItem('household_members', JSON.stringify(resetList));
-    }
-
-    window.dispatchEvent(new Event('storage'));
-    toast({ title: "Time Warp Complete!", description: "Cycle resets should now trigger automatically." });
-  };
-
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20 bg-background">
       <Navbar />
@@ -258,9 +228,8 @@ export default function HouseholdPage() {
 
             {isOwner && (
               <div className="pt-8 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button asChild variant="outline" className="border-primary text-primary"><Link href="/thanks"><Sparkles className="w-4 h-4 mr-2" /> Support Tristan</Link></Button>
-                  <Button variant="outline" onClick={simulateTimeTravel} className="border-orange-500 text-orange-600"><Clock className="w-4 h-4 mr-2" /> Simulate New Cycle</Button>
+                <div className="grid grid-cols-1 gap-4">
+                  <Button asChild variant="outline" className="border-primary text-primary w-full"><Link href="/thanks"><Sparkles className="w-4 h-4 mr-2" /> Support Tristan</Link></Button>
                 </div>
                 <AlertDialog>
                   <AlertDialogTrigger asChild><Button variant="destructive" className="w-full font-bold shadow-lg"><Trash2 className="w-4 h-4 mr-2" /> Decommission Household Base</Button></AlertDialogTrigger>
