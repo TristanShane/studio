@@ -8,6 +8,10 @@ import { Heart, Coffee, ExternalLink, ArrowLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 export default function ThanksPage() {
+  // REPLACE THIS with your personal PayPal.Me link or email-based link
+  // Example: https://www.paypal.me/YourUsername
+  const paypalUrl = "https://www.paypal.com/donate"; 
+
   return (
     <div className="min-h-screen pb-24 md:pb-8 md:pt-20 bg-background">
       <Navbar />
@@ -40,7 +44,7 @@ export default function ThanksPage() {
             <div className="pt-4">
               <Button asChild size="lg" className="w-full bg-[#0070ba] hover:bg-[#003087] text-white font-bold h-16 text-lg shadow-lg">
                 <a 
-                  href="https://www.paypal.com/donate" 
+                  href={paypalUrl}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-3"
@@ -53,7 +57,7 @@ export default function ThanksPage() {
             </div>
             
             <p className="text-[10px] text-muted-foreground italic">
-              *You will be redirected to PayPal's secure external checkout.
+              *A Personal PayPal account works perfectly. You will be redirected to PayPal's secure external site.
             </p>
           </CardContent>
         </Card>
