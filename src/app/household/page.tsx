@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Navbar } from "@/components/layout/Navbar";
@@ -190,13 +189,21 @@ export default function HouseholdPage() {
       const updated = chores.map((c: any) => ({ ...c, lastActionAt: c.frequency === 'daily' ? dayAgo : weekAgo }));
       localStorage.setItem('household_chores', JSON.stringify(updated));
     }
-    // 2. Reset Prize cycle back
+    // 2. Reset Prize cycle back and Wipe Points
     const savedPrize = localStorage.getItem('household_prize');
     if (savedPrize) {
       const p = JSON.parse(savedPrize);
       const wayBack = new Date(Date.now() - (32 * 24 * 60 * 60 * 1000)).toISOString();
       localStorage.setItem('household_prize', JSON.stringify({ ...p, lastResetAt: wayBack }));
     }
+    // Wipe all member points to simulate a new battle cycle
+    const savedMembers = localStorage.getItem('household_members');
+    if (savedMembers) {
+      const membersList = JSON.parse(savedMembers);
+      const resetList = membersList.map((m: any) => ({ ...m, points: 0 }));
+      localStorage.setItem('household_members', JSON.stringify(resetList));
+    }
+
     window.dispatchEvent(new Event('storage'));
     toast({ title: "Time Warp Complete!", description: "Cycle resets should now trigger automatically." });
   };

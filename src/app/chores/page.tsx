@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { isSameDay, isSameWeek, isSameMonth, startOfWeek, startOfMonth } from "date-fns";
+import { isSameDay, isSameWeek, isSameMonth } from "date-fns";
 import { 
   Dialog, 
   DialogContent, 
@@ -47,7 +46,6 @@ export default function ChoresPage() {
       const savedChores = localStorage.getItem('household_chores');
       const parsedChores: Chore[] = savedChores ? JSON.parse(savedChores) : [];
       
-      // Run recurring reset logic
       const { updatedChores, hasChanges } = syncAndResetRecurringChores(parsedChores);
       if (hasChanges) {
         localStorage.setItem('household_chores', JSON.stringify(updatedChores));
@@ -78,7 +76,6 @@ export default function ChoresPage() {
     const now = new Date();
     let hasChanges = false;
 
-    // 1. Reset Chores
     const updated = currentChores.map(chore => {
       if (chore.status === 'pending') return chore;
       if (!chore.lastActionAt) return chore;
@@ -86,28 +83,17 @@ export default function ChoresPage() {
       const lastDate = new Date(chore.lastActionAt);
       let shouldReset = false;
 
-      if (chore.frequency === 'daily') {
-        shouldReset = !isSameDay(now, lastDate);
-      } else if (chore.frequency === 'weekly') {
-        shouldReset = !isSameWeek(now, lastDate, { weekStartsOn: 1 });
-      } else if (chore.frequency === 'monthly') {
-        shouldReset = !isSameMonth(now, lastDate);
-      }
+      if (chore.frequency === 'daily') shouldReset = !isSameDay(now, lastDate);
+      else if (chore.frequency === 'weekly') shouldReset = !isSameWeek(now, lastDate, { weekStartsOn: 1 });
+      else if (chore.frequency === 'monthly') shouldReset = !isSameMonth(now, lastDate);
 
       if (shouldReset) {
         hasChanges = true;
-        return {
-          ...chore,
-          status: 'pending' as const,
-          assignedTo: undefined,
-          assignedToId: undefined,
-          lastActionAt: undefined
-        };
+        return { ...chore, status: 'pending' as const, assignedTo: undefined, assignedToId: undefined, lastActionAt: undefined };
       }
       return chore;
     });
 
-    // 2. Reset Prize XP if cycle passed
     const savedPrize = localStorage.getItem('household_prize');
     if (savedPrize) {
       const p = JSON.parse(savedPrize);
@@ -121,6 +107,13 @@ export default function ChoresPage() {
       if (prizeCycleReset) {
         const updatedPrize = { ...p, currentXP: 0, lastResetAt: now.toISOString() };
         localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
+        
+        const savedMembers = localStorage.getItem('household_members');
+        if (savedMembers) {
+          const members = JSON.parse(savedMembers);
+          const resetMembers = members.map((m: any) => ({ ...m, points: 0 }));
+          localStorage.setItem('household_members', JSON.stringify(resetMembers));
+        }
         hasChanges = true;
       }
     }
@@ -240,7 +233,6 @@ export default function ChoresPage() {
     );
     saveChores(updated);
     
-    // Remove last history entry for this chore if revoking
     const savedHistory = localStorage.getItem('household_history');
     if (savedHistory) {
       const history = JSON.parse(savedHistory);

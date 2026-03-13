@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -135,7 +134,7 @@ export default function Dashboard() {
       return chore;
     });
 
-    // 2. Reset Prize XP Cycle
+    // 2. Reset Prize Cycle & Member Points
     const savedPrize = localStorage.getItem('household_prize');
     if (savedPrize) {
       const p = JSON.parse(savedPrize);
@@ -147,9 +146,19 @@ export default function Dashboard() {
       if (p.frequency === 'Monthly') prizeCycleReset = !isSameMonth(now, lastReset);
 
       if (prizeCycleReset) {
+        // Reset Prize
         const updatedPrize = { ...p, currentXP: 0, lastResetAt: now.toISOString() };
         localStorage.setItem('household_prize', JSON.stringify(updatedPrize));
         setPrize(updatedPrize);
+
+        // Reset ALL Member Points for the new battle
+        const savedMembers = localStorage.getItem('household_members');
+        if (savedMembers) {
+          const members = JSON.parse(savedMembers);
+          const resetMembers = members.map((m: any) => ({ ...m, points: 0 }));
+          localStorage.setItem('household_members', JSON.stringify(resetMembers));
+        }
+        
         hasChanges = true;
       }
     }
@@ -342,7 +351,7 @@ export default function Dashboard() {
   const choresTodayCount = chores.filter(c => c.status === 'completed' && c.assignedToId === activeMember?.id && isSameDay(new Date(), new Date(c.lastActionAt || 0))).length;
 
   const stats = [
-    { label: "Current XP", value: (activeMember?.points || 0).toLocaleString(), icon: Star, color: "bg-primary" },
+    { label: "Battle XP", value: (activeMember?.points || 0).toLocaleString(), icon: Star, color: "bg-primary" },
     { label: "Active Streak", value: `${activeMember?.streak || 0} Days`, icon: Flame, color: "bg-orange-500" },
     { label: "Victories Today", value: choresTodayCount, icon: Trophy, color: "bg-accent" },
   ];
